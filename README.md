@@ -1,0 +1,1 @@
+# GAI_hand_osteoporosis
