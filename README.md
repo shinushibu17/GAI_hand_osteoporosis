@@ -156,6 +156,13 @@ python models/augmentation_study.py --generator diffusion   # use Diffusion outp
 ## Installation
 
 ```bash
+# If you are using miniconda module instead of python run the below line
+module load miniconda
+
+conda create -n hand_oa python=3.10 -y
+conda activate hand_oa
+pip install -r requirements.txt
+
 pip install -r requirements.txt
 
 # GPU (recommended — check your CUDA version with nvidia-smi)
