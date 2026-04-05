@@ -88,10 +88,13 @@ JOINT_MAP = {
     "pip2": "PIP2", "pip3": "PIP3", "pip4": "PIP4", "pip5": "PIP5",
 }
 
-# Grades for which we generate synthetic data (rare in real dataset)
-AUGMENT_GRADES = [2, 3]
-# How many synthetic images to add per grade
-N_SYNTHETIC_PER_GRADE = 500
+# Only augment truly rare grades — KL=2 has ~3100 real training images and
+# does not benefit from synthetic augmentation. KL=3 (~216) and KL=4 (~163)
+# are the classes that genuinely need more examples.
+AUGMENT_GRADES = [3, 4]
+# Keep synthetic count modest relative to real data size to avoid diluting
+# the real signal with imperfect GAN images
+N_SYNTHETIC_PER_GRADE = 150
 
 
 # ── Real image dataset (mirrors kl_classifier.py) ────────────────────────────
@@ -487,8 +490,16 @@ def main():
     for target_kl in AUGMENT_GRADES:
         source_kl = target_kl - 1
         if args.generator == "cyclegan":
-            synthetic += generate_cyclegan(source_kl, target_kl,
-                                           N_SYNTHETIC_PER_GRADE, train_idx, device)
+            # Check if a CycleGAN exists for this transition; fall back to
+            # the nearest available one if not (e.g. KL=4 uses KL=2→3 generator)
+            ckpt_dir = Path(__file__).parent / f"kl{source_kl}_to_kl{target_kl}_cyclegan"
+            if not (ckpt_dir / "G_final.pt").exists():
+                print(f"  No CycleGAN found for KL={source_kl}→{target_kl}, "
+                      f"falling back to diffusion for KL={target_kl}.")
+                synthetic += generate_diffusion(target_kl, N_SYNTHETIC_PER_GRADE, device)
+            else:
+                synthetic += generate_cyclegan(source_kl, target_kl,
+                                               N_SYNTHETIC_PER_GRADE, train_idx, device)
         else:  # diffusion
             synthetic += generate_diffusion(target_kl, N_SYNTHETIC_PER_GRADE, device)
 
