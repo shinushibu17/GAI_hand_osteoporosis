@@ -252,7 +252,13 @@ def evaluate_fast(model, test_ds, device):
 
 
 # ── Training ───────────────────────────────────────────────────────────────────
-def train_model(train_ds, val_ds, device, epochs=20, lr=2e-4, label=""):
+def train_model(train_ds, val_ds, device, epochs=20, lr=2e-4, label="",
+                init_model=None):
+    """
+    init_model: if provided, fine-tune from these weights instead of
+                initialising from scratch.  Pass the baseline model to
+                ensure the only experimental variable is the training data.
+    """
     def get_labels(ds):
         if hasattr(ds, "index"):
             return [kl for _, kl in ds.index]
@@ -278,7 +284,7 @@ def train_model(train_ds, val_ds, device, epochs=20, lr=2e-4, label=""):
     val_dl   = DataLoader(val_ds,   batch_size=32, shuffle=False,
                           num_workers=0, pin_memory=pin)
 
-    m         = build_model().to(device)
+    m = init_model if init_model is not None else build_model().to(device)
     optimiser = torch.optim.AdamW(m.parameters(), lr=lr, weight_decay=1e-4)
     warmup    = max(1, epochs // 10)
     def lr_lambda(ep):
@@ -555,7 +561,11 @@ def main():
     synth_ds  = SyntheticDataset(synthetic, eval_tf)
     train_aug = ConcatDataset([train_real, synth_ds])
 
-    # ── Augmented model ───────────────────────────────────────────────────────
+    # ── Augmented model — fine-tune from baseline weights ────────────────────
+    # Starting from the baseline checkpoint ensures the only variable is the
+    # training data (real vs real+synthetic). Training from scratch would
+    # introduce random initialisation as a confound and require many more
+    # epochs to reach the same quality level.
     aug_ckpt = OUT_DIR / "augmented_model.pt"
     if aug_ckpt.exists():
         print(f"\n=== Loading existing AUGMENTED model from {aug_ckpt} ===")
@@ -563,9 +573,15 @@ def main():
         aug_model.load_state_dict(
             torch.load(aug_ckpt, map_location=device, weights_only=True))
     else:
-        print("\n=== Training AUGMENTED model (real + synthetic) ===")
+        print("\n=== Fine-tuning AUGMENTED model from baseline weights ===")
+        print("    (initialised from kl_image_clf_improved/best_model.pt)")
+        aug_model = build_model().to(device)
+        aug_model.load_state_dict(
+            torch.load(BASELINE_CKPT, map_location=device, weights_only=True))
+        # Lower LR for fine-tuning — model is already well-trained
         aug_model = train_model(train_aug, val_ds, device,
-                                epochs=args.epochs, lr=2e-4, label="Augmented")
+                                epochs=args.epochs, lr=5e-5, label="Augmented",
+                                init_model=aug_model)
         torch.save(aug_model.state_dict(), aug_ckpt)
         print(f"Augmented model saved → {aug_ckpt}")
 
@@ -609,8 +625,8 @@ def parse_args():
     p = argparse.ArgumentParser(
         description="Augmentation study using ResNet-50 + Focal Loss + TTA")
     p.add_argument("--generator", choices=["cyclegan", "diffusion"], default="cyclegan")
-    p.add_argument("--epochs",    type=int, default=20,
-                   help="Training epochs for the augmented model (default 20)")
+    p.add_argument("--epochs",    type=int, default=10,
+                   help="Fine-tuning epochs for the augmented model (default 10)")
     p.add_argument("--joint",     type=str, default=None,
                    choices=list(JOINT_MAP.keys()))
     return p.parse_args()
