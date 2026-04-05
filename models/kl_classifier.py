@@ -550,6 +550,10 @@ def main():
                                  target_names=[f"KL={k}" for k in KL_CLASSES],
                                  zero_division=0))
 
+    # Save raw predictions so improved_classifier.py can load them for comparison
+    np.save(OUT_DIR / "test_probs.npy",  test_probs)
+    np.save(OUT_DIR / "test_labels.npy", test_labels)
+
     # ── Plots
     plot_training_curves(history, OUT_DIR / "training_curves.png")
     plot_confusion(test_labels, test_preds, OUT_DIR / "confusion_matrix.png")
