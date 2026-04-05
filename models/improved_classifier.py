@@ -577,8 +577,12 @@ def main():
     test_dl  = DataLoader(test_ds,  batch_size=args.batch_size, shuffle=False,
                           num_workers=0)
 
-    # Focal loss with class weights
-    criterion = FocalLoss(gamma=args.gamma, weight=class_w)
+    # Focal loss — no class weights here.
+    # WeightedRandomSampler already balances each mini-batch across classes.
+    # Adding class_w on top of that double-counts imbalance, collapsing the
+    # model to only predict rare classes.  Focal loss focuses on hard examples
+    # regardless of class frequency; the sampler handles the frequency problem.
+    criterion = FocalLoss(gamma=args.gamma, weight=None)
 
     model = build_model(N_CLASSES).to(device)
     total_params = sum(p.numel() for p in model.parameters())
@@ -601,7 +605,7 @@ def main():
     if ckpt.exists():
         print(f"\n=== Existing checkpoint found at {ckpt} — skipping training ===")
         print("    Delete best_model.pt to retrain from scratch.")
-        model.load_state_dict(torch.load(ckpt, map_location=device))
+        model.load_state_dict(torch.load(ckpt, map_location=device, weights_only=True))
         # Skip straight to evaluation
         args.epochs = 0
 
@@ -626,7 +630,7 @@ def main():
 
     # ── Test evaluation ───────────────────────────────────────────────────────
     print("\nLoading best checkpoint …")
-    model.load_state_dict(torch.load(ckpt, map_location=device))
+    model.load_state_dict(torch.load(ckpt, map_location=device, weights_only=True))
 
     if args.no_tta:
         print("Evaluating without TTA …")
@@ -666,7 +670,7 @@ def main():
         baseline_ckpt = BASELINE_DIR / "best_model.pt"
         if baseline_ckpt.exists():
             b_model = build_baseline(N_CLASSES).to(device)
-            b_model.load_state_dict(torch.load(baseline_ckpt, map_location=device))
+            b_model.load_state_dict(torch.load(baseline_ckpt, map_location=device, weights_only=True))
             _, _, baseline_probs, baseline_labels = evaluate(
                 b_model, test_dl, criterion, device)
         else:
