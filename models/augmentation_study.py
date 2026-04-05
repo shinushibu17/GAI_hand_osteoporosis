@@ -9,8 +9,8 @@ on the SAME held-out real test set:
                the CycleGAN or diffusion model for rare KL grades
 
 The key question:
-  Does adding synthetic KL=2 (translated from KL=1) and KL=3 (translated
-  from KL=2) images to the training set meaningfully improve the model's
+  Does adding synthetic KL=3 (translated from KL=2) and KL=4 (translated
+  from KL=3) images to the training set meaningfully improve the model's
   ability to classify rare/severe grades on real test images?
 
 Experimental design
@@ -89,7 +89,7 @@ JOINT_MAP = {
 }
 
 # Grades for which we generate synthetic data (rare in real dataset)
-AUGMENT_GRADES = [2, 3]
+AUGMENT_GRADES = [3, 4]
 # How many synthetic images to add per grade
 N_SYNTHETIC_PER_GRADE = 500
 

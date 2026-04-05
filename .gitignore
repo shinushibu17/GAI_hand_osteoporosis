@@ -208,10 +208,3 @@ __marimo__/
 
 # Large data files — store locally or on a shared drive, not in git
 data/
-
-# Model outputs (checkpoints, generated images)
-models/kl_image_clf/
-models/kl1_to_kl2_cyclegan/
-models/kl2_to_kl3_cyclegan/
-models/diffusion_kl/
-models/augmentation_study/
