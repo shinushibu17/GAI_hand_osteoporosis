@@ -9,8 +9,8 @@ on the SAME held-out real test set:
                the CycleGAN or diffusion model for rare KL grades
 
 The key question:
-  Does adding synthetic KL=3 (translated from KL=2) and KL=4 (translated
-  from KL=3) images to the training set meaningfully improve the model's
+  Does adding synthetic KL=2 (translated from KL=1) and KL=3 (translated
+  from KL=2) images to the training set meaningfully improve the model's
   ability to classify rare/severe grades on real test images?
 
 Experimental design
@@ -89,7 +89,7 @@ JOINT_MAP = {
 }
 
 # Grades for which we generate synthetic data (rare in real dataset)
-AUGMENT_GRADES = [3, 4]
+AUGMENT_GRADES = [2, 3]
 # How many synthetic images to add per grade
 N_SYNTHETIC_PER_GRADE = 500
 
@@ -201,7 +201,9 @@ def generate_cyclegan(source_kl: int, target_kl: int, n: int,
     Load a trained CycleGAN G_final.pt and translate real training images
     from source_kl to target_kl.  Returns list of (tensor, target_kl) pairs.
     """
-    from models.kl_transition_generator import ResNetGenerator
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent))
+    from kl_transition_generator import ResNetGenerator
 
     ckpt_dir = Path(__file__).parent / f"kl{source_kl}_to_kl{target_kl}_cyclegan"
     if not (ckpt_dir / "G_final.pt").exists():
@@ -241,7 +243,9 @@ def generate_diffusion(target_kl: int, n: int, device: torch.device) -> list[tup
     Load a trained diffusion model and generate n synthetic images for target_kl.
     Returns list of (tensor, target_kl) pairs.
     """
-    from models.diffusion_generator import UNet, NoiseSchedule, ddim_sample
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent))
+    from diffusion_generator import UNet, NoiseSchedule, ddim_sample
 
     ckpt = Path(__file__).parent / "diffusion_kl" / "unet_best.pt"
     if not ckpt.exists():
@@ -282,10 +286,6 @@ def build_model():
 
 
 def train_model(train_ds, val_ds, device, epochs=20, lr=3e-4, label=""):
-    labels      = [kl for _, kl in (train_ds.index if hasattr(train_ds, "index")
-                   else [(None, item[1]) for item in train_ds.images
-                         if hasattr(train_ds, "images")])]
-
     # Weighted sampler
     def get_labels(ds):
         if hasattr(ds, "index"):
@@ -460,9 +460,18 @@ def main():
     test_ds    = RealDataset(test_idx,  eval_tf)
 
     # ── Baseline ──────────────────────────────────────────────────────────────
-    print("\n=== Training BASELINE model (real images only) ===")
-    baseline_model = train_model(train_real, val_ds, device,
-                                 epochs=args.epochs, label="Baseline")
+    baseline_ckpt = OUT_DIR / "baseline_model.pt"
+    baseline_model = build_model().to(device)
+    if baseline_ckpt.exists():
+        print(f"\n=== Loading existing BASELINE model from {baseline_ckpt} ===")
+        baseline_model.load_state_dict(torch.load(baseline_ckpt, map_location=device))
+    else:
+        print("\n=== Training BASELINE model (real images only) ===")
+        baseline_model = train_model(train_real, val_ds, device,
+                                     epochs=args.epochs, label="Baseline")
+        torch.save(baseline_model.state_dict(), baseline_ckpt)
+        print(f"Baseline model saved → {baseline_ckpt}")
+
     base_probs, y_true = test_model(baseline_model, test_ds, device)
     base_preds = base_probs.argmax(axis=1)
 
@@ -495,9 +504,18 @@ def main():
     print(f"Synthetic images added: {synth_dist}")
 
     # ── Augmented model ───────────────────────────────────────────────────────
-    print("\n=== Training AUGMENTED model (real + synthetic) ===")
-    aug_model = train_model(train_aug, val_ds, device,
-                            epochs=args.epochs, label="Augmented")
+    aug_ckpt  = OUT_DIR / "augmented_model.pt"
+    aug_model = build_model().to(device)
+    if aug_ckpt.exists():
+        print(f"\n=== Loading existing AUGMENTED model from {aug_ckpt} ===")
+        aug_model.load_state_dict(torch.load(aug_ckpt, map_location=device))
+    else:
+        print("\n=== Training AUGMENTED model (real + synthetic) ===")
+        aug_model = train_model(train_aug, val_ds, device,
+                                epochs=args.epochs, label="Augmented")
+        torch.save(aug_model.state_dict(), aug_ckpt)
+        print(f"Augmented model saved → {aug_ckpt}")
+
     aug_probs, _ = test_model(aug_model, test_ds, device)
     aug_preds    = aug_probs.argmax(axis=1)
 
@@ -532,9 +550,6 @@ def main():
     results.to_csv(csv_path, index=False)
     print(f"\nResults saved to {csv_path}")
 
-    # Save model checkpoints
-    torch.save(baseline_model.state_dict(), OUT_DIR / "baseline_model.pt")
-    torch.save(aug_model.state_dict(),      OUT_DIR / "augmented_model.pt")
     print(f"Models saved to {OUT_DIR}/")
 
 
