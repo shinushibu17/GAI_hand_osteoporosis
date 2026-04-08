@@ -1,16 +1,22 @@
-# Core data & visualisation (EDA notebook + all models)
-pandas
-openpyxl
-pillow
-matplotlib
-seaborn
-numpy
-scikit-learn
-tqdm
+# GAI Hand Osteoarthritis — Python dependencies
+# Install with: pip install -r requirements.txt
 
-# Deep learning — GPU (CUDA 12.1)
-# Check your CUDA version first: nvidia-smi
-# Change cu121 to cu118 if you have CUDA 11.8
---extra-index-url https://download.pytorch.org/whl/cu121
-torch
-torchvision
+# Core
+numpy>=1.24
+pandas>=2.0
+openpyxl>=3.1          # required by pandas to read .xlsx files
+
+# Image processing
+Pillow>=10.0
+opencv-python>=4.8
+
+# Deep learning
+torch>=2.1
+torchvision>=0.16
+tqdm>=4.66
+
+# Evaluation & metrics
+scikit-learn>=1.3
+
+# Plotting
+matplotlib>=3.8
