@@ -1,0 +1,18 @@
+{
+  "joint": "pip",
+  "use_fake": false,
+  "n_classes": 5,
+  "epochs_max": 2,
+  "batch_size": 16,
+  "optimizer": "AdamW",
+  "optimizer_kwargs": {
+    "lr": 0.0002,
+    "weight_decay": 0.0001
+  },
+  "patience": 5,
+  "min_delta": 0.001,
+  "mean": 0.4315861236159769,
+  "std": 0.3305941195370847,
+  "train_transform": "Compose(\n    Resize(size=(224, 224), interpolation=bilinear, max_size=None, antialias=True)\n    NLMFilter(h=5, template_window=5, search_window=11)\n    CLAHE(clip_limit=1.0, tile_grid=(16, 16))\n    RandomRotation(degrees=[-10.0, 10.0], interpolation=nearest, expand=False, fill=0)\n    RandomHorizontalFlip(p=0.5)\n    ToTensor()\n    Normalize(mean=[0.4315861236159769], std=[0.3305941195370847])\n)",
+  "eval_transform": "Compose(\n    Resize(size=(224, 224), interpolation=bilinear, max_size=None, antialias=True)\n    NLMFilter(h=5, template_window=5, search_window=11)\n    CLAHE(clip_limit=1.0, tile_grid=(16, 16))\n    ToTensor()\n    Normalize(mean=[0.4315861236159769], std=[0.3305941195370847])\n)"
+}

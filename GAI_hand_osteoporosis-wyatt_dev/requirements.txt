@@ -1,0 +1,16 @@
+# Core data & visualisation (EDA notebook + all models)
+pandas
+openpyxl
+pillow
+matplotlib
+seaborn
+numpy
+scikit-learn
+tqdm
+
+# Deep learning — GPU (CUDA 12.1)
+# Check your CUDA version first: nvidia-smi
+# Change cu121 to cu118 if you have CUDA 11.8
+--extra-index-url https://download.pytorch.org/whl/cu121
+torch
+torchvision
