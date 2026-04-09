@@ -40,6 +40,7 @@ Usage
 
 from __future__ import annotations
 
+import os
 import sys
 import json
 import time
@@ -315,6 +316,16 @@ class KLGradeClassifier:
         epochs_no_imp = 0
         epoch_times: list[float] = []
 
+        def _fmt(seconds: float) -> str:
+            h = int(seconds // 3600)
+            m = int((seconds % 3600) // 60)
+            s = int(seconds % 60)
+            if h > 0:
+                return f"{h}h {m}m {s}s"
+            if m > 0:
+                return f"{m}m {s}s"
+            return f"{s}s"
+
         print(f"\nTraining {self.joint.upper()} classifier for up to {epochs} epochs "
               f"| optimizer={optimizer_cls.__name__} lr={lr} "
               f"| patience={patience} min_delta={min_delta}")
@@ -340,7 +351,7 @@ class KLGradeClassifier:
 
             improved = va_acc > best_acc + min_delta
             print(f"  Epoch {epoch:02d}/{epochs} "
-                  f"[{epoch_time:.0f}s | est. remaining {remaining/60:.1f}m] | "
+                  f"[{_fmt(epoch_time)} | est. remaining {_fmt(remaining)}] | "
                   f"train loss={tr_loss:.4f} acc={tr_acc:.3f} | "
                   f"val loss={va_loss:.4f} acc={va_acc:.3f}"
                   + (" ✓" if improved else f" (no improvement {epochs_no_imp + 1}/{patience})"))
@@ -365,7 +376,7 @@ class KLGradeClassifier:
         total = sum(epoch_times)
         print(f"\nBest val acc: {best_acc:.4f}  "
               f"(stopped at epoch {epoch}/{epochs} | "
-              f"total time {total/60:.1f}m)")
+              f"total time {_fmt(total)})")
         print(f"\nSaved to {self.out_dir}/")
         print(f"  best_model.pt")
 
@@ -403,14 +414,18 @@ class KLGradeClassifier:
         all_probs  = []
         all_labels = []
         self.model.eval()
+        n_batches  = len(test_loader)
 
         with torch.no_grad():
-            for imgs, labels, _ in tqdm(test_loader, desc="Evaluating"):
+            for batch_idx, (imgs, labels, _) in enumerate(test_loader, 1):
                 imgs = imgs.to(self.device)
                 logits = self.model(imgs)
                 probs  = F.softmax(logits, dim=1).cpu().numpy()
                 all_probs.append(probs)
                 all_labels.extend(labels.numpy())
+                print(f"\r  Evaluating batch {batch_idx}/{n_batches}",
+                      end="", flush=True)
+        print()
 
         probs  = np.concatenate(all_probs)
         labels = np.array(all_labels)
@@ -530,15 +545,18 @@ class KLGradeClassifier:
         shuffle:    bool,
         use_sampler: bool,
     ) -> DataLoader:
+        pin = self.device.type == "cuda"
+        nw  = min(4, os.cpu_count() or 1)
         if use_sampler:
             weights = self._sample_weights(split_ds)
             s       = WeightedRandomSampler(weights, len(weights), replacement=True)
-            return DataLoader(split_ds, batch_size=batch_size, sampler=s, num_workers=0)
-        return DataLoader(split_ds, batch_size=batch_size, shuffle=shuffle, num_workers=0)
+            return DataLoader(split_ds, batch_size=batch_size, sampler=s,
+                              num_workers=nw, pin_memory=pin, persistent_workers=True)
+        return DataLoader(split_ds, batch_size=batch_size, shuffle=shuffle,
+                          num_workers=nw, pin_memory=pin, persistent_workers=True)
 
     def _class_weights(self, split_ds) -> torch.Tensor:
         """Inverse frequency class weights for CrossEntropyLoss."""
-        import numpy as np
         counts = np.bincount(
             split_ds.data["label"].astype(int).values,
             minlength=self.n_classes,
@@ -565,8 +583,9 @@ class KLGradeClassifier:
     def _train_epoch(self, loader, criterion, optimizer, scaler) -> tuple[float, float]:
         self.model.train()
         total_loss = correct = total = 0
+        n_batches  = len(loader)
 
-        for imgs, labels, _ in tqdm(loader, desc="  Train", leave=False):
+        for batch_idx, (imgs, labels, _) in enumerate(loader, 1):
             imgs, labels = imgs.to(self.device), labels.to(self.device)
             optimizer.zero_grad()
 
@@ -590,14 +609,20 @@ class KLGradeClassifier:
             correct    += (preds == labels).sum().item()
             total      += imgs.size(0)
 
+            print(f"\r  Train batch {batch_idx}/{n_batches} "
+                  f"loss={total_loss/total:.4f} acc={correct/total:.3f}",
+                  end="", flush=True)
+
+        print()  # newline after batch progress
         return total_loss / total, correct / total
 
     def _eval_epoch(self, loader, criterion) -> tuple[float, float]:
         self.model.eval()
         total_loss = correct = total = 0
+        n_batches  = len(loader)
 
         with torch.no_grad():
-            for imgs, labels, _ in tqdm(loader, desc="  Val  ", leave=False):
+            for batch_idx, (imgs, labels, _) in enumerate(loader, 1):
                 imgs, labels = imgs.to(self.device), labels.to(self.device)
                 logits       = self.model(imgs)
                 loss         = criterion(logits, labels)
@@ -605,6 +630,11 @@ class KLGradeClassifier:
                 correct     += (logits.argmax(1) == labels).sum().item()
                 total       += imgs.size(0)
 
+                print(f"\r  Val   batch {batch_idx}/{n_batches} "
+                      f"loss={total_loss/total:.4f} acc={correct/total:.3f}",
+                      end="", flush=True)
+
+        print()  # newline after batch progress
         return total_loss / total, correct / total
 
     # ── Plots ─────────────────────────────────────────────────────────────────

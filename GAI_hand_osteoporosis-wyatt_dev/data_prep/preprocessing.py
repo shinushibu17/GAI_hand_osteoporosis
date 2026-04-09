@@ -3,8 +3,8 @@ preprocessing.py
 ================
 Provides:
   - Custom torchvision-compatible transforms (CLAHE, NLMFilter)
-  - CleanImageDataset — EDA, visualization, transform comparison
-  - _SplitDataset — lazy PyTorch Dataset ready for DataLoader
+  - CleanImageDataset  — EDA, visualization, transform comparison
+  - _SplitDataset      — lazy PyTorch Dataset ready for DataLoader
 
 CleanImageDataset is purely for exploration. It holds only metadata and
 reads images on demand. Use split() to get _SplitDataset objects, then
@@ -21,8 +21,8 @@ Typical usage
 >>> # Compare transforms on a single image
 >>> from torchvision import transforms
 >>> pipelines = {
-... "NLM + CLAHE": transforms.Compose([NLMFilter(), CLAHE(), transforms.ToTensor()]),
-... "CLAHE only": transforms.Compose([CLAHE(), transforms.ToTensor()]),
+...     "NLM + CLAHE": transforms.Compose([NLMFilter(), CLAHE(), transforms.ToTensor()]),
+...     "CLAHE only":  transforms.Compose([CLAHE(), transforms.ToTensor()]),
 ... }
 >>> ds.compare_images(0, pipelines)
 >>>
@@ -49,15 +49,21 @@ from torchvision import transforms
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from raw_data import RawImageDataset, _read_image
-from transforms import CLAHE, NLMFilter, BilateralFilter, MedianFilter, InvertGrayscale
-
 
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
-_DEFAULT_ZIP = _PROJECT_ROOT / "data" / "Finger Joints.zip"
+_DEFAULT_ZIP  = _PROJECT_ROOT / "data" / "Finger Joints.zip"
+
+
+# ---------------------------------------------------------------------------
+# Transforms — imported from transforms.py
+# ---------------------------------------------------------------------------
+
+from transforms import CLAHE, NLMFilter, BilateralFilter, MedianFilter, InvertGrayscale
+
 
 # ---------------------------------------------------------------------------
 # _SplitDataset — lazy PyTorch Dataset, ready to wrap in a DataLoader
@@ -75,24 +81,36 @@ class _SplitDataset(Dataset):
 
     Parameters
     ----------
-    df : DataFrame slice with columns filename | label | joint
-    zip_path : path to the PNG zip archive
-    file_map : dict mapping bare filename → full zip entry path
+    df        : DataFrame slice with columns filename | label | joint
+    zip_path  : path to the PNG zip archive
+    file_map  : dict mapping bare filename → full zip entry path
     transform : torchvision Compose pipeline — set externally before use
+    cache     : if True, load all images into RAM on init for faster training
     """
 
     def __init__(
         self,
-        df: pd.DataFrame,
-        zip_path: Path,
-        file_map: dict[str, str],
+        df:        pd.DataFrame,
+        zip_path:  Path,
+        file_map:  dict[str, str],
         transform: transforms.Compose | None = None,
+        cache:     bool = False,
     ) -> None:
-        self.data = df.reset_index(drop=True)
-        self.zip_path = zip_path
-        self.file_map = file_map
+        self.data      = df.reset_index(drop=True)
+        self.zip_path  = zip_path
+        self.file_map  = file_map
         self.transform = transform
-        self.labels = torch.tensor(self.data["label"].astype(int).values, dtype=torch.long)
+        self.labels    = torch.tensor(self.data["label"].astype(int).values, dtype=torch.long)
+
+        # Pre-load all images into RAM — eliminates zip I/O bottleneck during training
+        self._cache: list | None = None
+        if cache:
+            print(f"Caching {len(self.data)} images into RAM...", flush=True)
+            self._cache = []
+            with zipfile.ZipFile(self.zip_path, "r") as zf:
+                for _, row in self.data.iterrows():
+                    self._cache.append(_read_image(zf, self.file_map[row["filename"]]))
+            print(f"  Done — {len(self._cache)} images cached.", flush=True)
 
     def __len__(self) -> int:
         return len(self.data)
@@ -101,11 +119,14 @@ class _SplitDataset(Dataset):
         if self.transform is None:
             raise RuntimeError(
                 "No transform set. Assign a pipeline before using the DataLoader:\n"
-                " dataset.transform = transforms.Compose([...])"
+                "  dataset.transform = transforms.Compose([...])"
             )
         row = self.data.iloc[idx]
-        with zipfile.ZipFile(self.zip_path, "r") as zf:
-            img = Image.fromarray(_read_image(zf, self.file_map[row["filename"]]))
+        if self._cache is not None:
+            img = Image.fromarray(self._cache[idx])
+        else:
+            with zipfile.ZipFile(self.zip_path, "r") as zf:
+                img = Image.fromarray(_read_image(zf, self.file_map[row["filename"]]))
         return self.transform(img), int(row["label"]), str(row["joint"])
 
     def __repr__(self) -> str:
@@ -126,28 +147,28 @@ class CleanImageDataset:
 
     Parameters
     ----------
-    raw : RawImageDataset instance
+    raw   : RawImageDataset instance
     small : subsample the dataset stratified by KL grade
-    pct : fraction to keep when small=True (default 0.1)
+    pct   : fraction to keep when small=True  (default 0.1)
     joint : joint type(s) to include — str, list[str], or None for all
-    seed : random seed
+    seed  : random seed
     """
 
     def __init__(
         self,
-        raw: RawImageDataset,
+        raw:   RawImageDataset,
         small: bool = False,
-        pct: float = 0.1,
+        pct:   float = 0.1,
         joint: str | list[str] | None = None,
-        seed: int = 42,
+        seed:  int = 42,
     ) -> None:
-        self.seed = seed
-        self.zip_path = raw.zip_path
+        self.seed      = seed
+        self.zip_path  = raw.zip_path
         self._file_map = raw._file_map
-        self.data = raw.data.copy()
+        self.data      = raw.data.copy()
 
         if joint is not None:
-            joints = [joint] if isinstance(joint, str) else list(joint)
+            joints  = [joint] if isinstance(joint, str) else list(joint)
             invalid = set(joints) - set(self.data["joint"].unique())
             if invalid:
                 raise ValueError(
@@ -177,8 +198,9 @@ class CleanImageDataset:
     def split(
         self,
         train_pct: float = 0.70,
-        val_pct: float = 0.15,
-        test_pct: float = 0.15,
+        val_pct:   float = 0.15,
+        test_pct:  float = 0.15,
+        cache:     bool  = False,
     ) -> tuple[_SplitDataset, _SplitDataset, _SplitDataset]:
         """
         Stratified split by KL grade → three _SplitDataset objects.
@@ -188,9 +210,11 @@ class CleanImageDataset:
 
         Parameters
         ----------
-        train_pct : fraction for training (default 0.70)
-        val_pct : fraction for validation (default 0.15)
-        test_pct : fraction for test (default 0.15)
+        train_pct : fraction for training    (default 0.70)
+        val_pct   : fraction for validation  (default 0.15)
+        test_pct  : fraction for test        (default 0.15)
+        cache     : load all images into RAM for faster training (default False)
+                    set True if you have enough free RAM (~2-4GB per joint)
 
         Returns
         -------
@@ -202,21 +226,22 @@ class CleanImageDataset:
         train_rows, val_rows, test_rows = [], [], []
 
         for _, group in self.data.groupby("label"):
-            g = group.sample(frac=1, random_state=self.seed)
-            n = len(g)
+            g       = group.sample(frac=1, random_state=self.seed)
+            n       = len(g)
             n_train = math.floor(n * train_pct)
-            n_val = math.floor(n * val_pct)
-            n_test = n - n_train - n_val
+            n_val   = math.floor(n * val_pct)
+            n_test  = n - n_train - n_val
 
             train_rows.append(g.iloc[:n_train])
-            val_rows.append( g.iloc[n_train : n_train + n_val])
+            val_rows.append(  g.iloc[n_train : n_train + n_val])
             test_rows.append( g.iloc[n_train + n_val : n_train + n_val + n_test])
 
         def _make(rows):
             return _SplitDataset(
-                df = pd.concat(rows),
+                df       = pd.concat(rows),
                 zip_path = self.zip_path,
                 file_map = self._file_map,
+                cache    = cache,
             )
 
         return _make(train_rows), _make(val_rows), _make(test_rows)
@@ -241,15 +266,15 @@ class CleanImageDataset:
 
     def display_image(
         self,
-        key: int | str,
+        key:          int | str,
         window_title: str | None = None,
     ) -> tuple[np.ndarray, int, str]:
         """Display raw image inline and return (image, label, joint)."""
-        row = self._resolve_row(key)
-        img = self._read(row["filename"])
+        row   = self._resolve_row(key)
+        img   = self._read(row["filename"])
         label = int(row["label"])
         joint = str(row["joint"])
-        title = window_title or f"{row['filename']} | {joint.upper()} | KL {label}"
+        title = window_title or f"{row['filename']}  |  {joint.upper()}  |  KL {label}"
 
         fig, ax = plt.subplots(figsize=(4, 5), constrained_layout=True)
         ax.imshow(img, cmap="gray", vmin=0, vmax=255)
@@ -261,7 +286,7 @@ class CleanImageDataset:
 
     def compare_images(
         self,
-        key: int | str,
+        key:       int | str,
         pipelines: dict[str, transforms.Compose],
     ) -> None:
         """
@@ -270,7 +295,7 @@ class CleanImageDataset:
 
         Parameters
         ----------
-        key : integer index OR filename string
+        key       : integer index OR filename string
         pipelines : dict mapping panel title → torchvision Compose pipeline
                     The original resized image is always shown as the first panel.
 
@@ -278,13 +303,13 @@ class CleanImageDataset:
         -------
         >>> from torchvision import transforms
         >>> pipelines = {
-        ... "NLM + CLAHE": transforms.Compose([NLMFilter(), CLAHE(), transforms.ToTensor()]),
-        ... "CLAHE only": transforms.Compose([CLAHE(), transforms.ToTensor()]),
-        ... "Median + CLAHE":transforms.Compose([transforms.GaussianBlur(3), CLAHE(), transforms.ToTensor()]),
+        ...     "NLM + CLAHE":   transforms.Compose([NLMFilter(), CLAHE(), transforms.ToTensor()]),
+        ...     "CLAHE only":    transforms.Compose([CLAHE(), transforms.ToTensor()]),
+        ...     "Median + CLAHE":transforms.Compose([transforms.GaussianBlur(3), CLAHE(), transforms.ToTensor()]),
         ... }
         >>> ds.compare_images(0, pipelines)
         """
-        row = self._resolve_row(key)
+        row     = self._resolve_row(key)
         raw_img = self._read(row["filename"])
         resized = np.array(Image.fromarray(raw_img).resize((224, 224), Image.BILINEAR))
 
@@ -292,8 +317,8 @@ class CleanImageDataset:
         panels: list[tuple[np.ndarray, str]] = [("Original (resized)", resized)]
 
         for title, pipeline in pipelines.items():
-            pil = Image.fromarray(resized)
-            out = pipeline(pil)
+            pil   = Image.fromarray(resized)
+            out   = pipeline(pil)
             # Handle tensor output — convert back to displayable numpy
             if isinstance(out, torch.Tensor):
                 arr = out.squeeze().numpy()
@@ -303,7 +328,7 @@ class CleanImageDataset:
                 arr = np.array(out)
             panels.append((title, arr))
 
-        n = len(panels)
+        n    = len(panels)
         cols = min(n, 3)
         rows = math.ceil(n / cols)
 
@@ -311,7 +336,7 @@ class CleanImageDataset:
                                  constrained_layout=True)
         axes = np.array(axes).flatten()
 
-        fig.suptitle(f"{row['filename']} | KL {int(row['label'])}", fontsize=10)
+        fig.suptitle(f"{row['filename']}  |  KL {int(row['label'])}", fontsize=10)
 
         for ax, (title, img) in zip(axes, panels):
             ax.imshow(img, cmap="gray", vmin=0, vmax=255)
@@ -328,7 +353,7 @@ class CleanImageDataset:
     def summary(self) -> pd.DataFrame:
         """KL grade distribution as percentages."""
         counts = self.data["label"].value_counts().sort_index()
-        pct = (counts / counts.sum() * 100).round(1)
+        pct    = (counts / counts.sum() * 100).round(1)
         return pd.DataFrame({"count": counts, "pct": pct}).rename_axis("KL Grade")
 
     def __repr__(self) -> str:
@@ -350,7 +375,7 @@ if __name__ == "__main__":
     from raw_data import RawImageDataset
 
     raw = RawImageDataset()
-    ds = CleanImageDataset(raw)
+    ds  = CleanImageDataset(raw)
 
     print(ds)
     print(ds.summary())
@@ -393,6 +418,6 @@ if __name__ == "__main__":
 
     print("\nTesting split...")
     train_ds, val_ds, test_ds = ds.split()
-    print(f" train={len(train_ds)}, val={len(val_ds)}, test={len(test_ds)}")
-    print(f" train + val + test = {len(train_ds) + len(val_ds) + len(test_ds)} (total={len(ds)})")
+    print(f"  train={len(train_ds)}, val={len(val_ds)}, test={len(test_ds)}")
+    print(f"  train + val + test = {len(train_ds) + len(val_ds) + len(test_ds)} (total={len(ds)})")
     print("Done.")

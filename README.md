@@ -122,6 +122,10 @@ ds.compare_images(0, pipelines)
 # Stratified split → _SplitDataset objects
 # Transforms are NOT applied here — the model class sets them
 train_ds, val_ds, test_ds = ds.split()
+
+# Enable RAM caching for faster training (~2-4GB per joint)
+# Use if you have enough free RAM — significantly reduces zip I/O bottleneck
+train_ds, val_ds, test_ds = ds.split(cache=True)
 ```
 
 ### `data_prep/transforms.py` — Custom Transforms
