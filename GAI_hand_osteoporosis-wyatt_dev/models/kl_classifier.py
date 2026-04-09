@@ -58,111 +58,50 @@ from sklearn.metrics import (
     roc_curve,
 )
 from sklearn.preprocessing import label_binarize
-from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
+from torch.utils.data import DataLoader, WeightedRandomSampler
 from torchvision import models, transforms
 from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "data_prep"))
 from transforms import CLAHE, NLMFilter
+from preprocessing import _SplitDataset
 
 # ---------------------------------------------------------------------------
 # Default paths
 # ---------------------------------------------------------------------------
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
-_DEFAULT_OUT  = _PROJECT_ROOT / "models" / "kl_classifier"
-_WEIGHTS_PATH = _PROJECT_ROOT / "pretrained" / "ResNet18" / "resnet18_imagenet.pth"
+_PROJECT_ROOT   = Path(__file__).resolve().parents[1]
+_DEFAULT_OUT    = _PROJECT_ROOT / "models" / "kl_classifier"
+_WEIGHTS_PATH   = _PROJECT_ROOT / "pretrained" / "ResNet18" / "resnet18_imagenet.pth"
+
+# ImageNet grayscale normalization constants
+# Mean/std averaged across RGB channels for single-channel input
+_IMAGENET_MEAN  = 0.485
+_IMAGENET_STD   = 0.229
 
 
-# ---------------------------------------------------------------------------
-# Internal Dataset wrapper — applies transforms lazily
-# ---------------------------------------------------------------------------
-
-class _JointDataset(Dataset):
+def compute_mean_std(split_ds: _SplitDataset, pipeline: transforms.Compose) -> tuple[float, float]:
     """
-    Wraps a _SplitDataset DataFrame slice with a transform pipeline.
-    Reads images lazily from zip on each __getitem__ call.
+    Compute mean and std from a split's images using the provided pipeline
+    (without normalization) so stats match what the model actually sees.
+
+    Parameters
+    ----------
+    split_ds : training _SplitDataset
+    pipeline : transform pipeline WITHOUT ToTensor normalization step —
+               should end with ToTensor only
     """
-
-    def __init__(
-        self,
-        df:        "pd.DataFrame",
-        zip_path:  Path,
-        file_map:  dict[str, str],
-        transform: transforms.Compose,
-    ) -> None:
-        import pandas as pd
-        self.data      = df.reset_index(drop=True)
-        self.zip_path  = zip_path
-        self.file_map  = file_map
-        self.transform = transform
-        self.labels    = torch.tensor(
-            self.data["label"].astype(int).values, dtype=torch.long
-        )
-
-    def __len__(self) -> int:
-        return len(self.data)
-
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, int]:
-        row = self.data.iloc[idx]
-        with zipfile.ZipFile(self.zip_path, "r") as zf:
-            with zf.open(self.file_map[row["filename"]]) as fh:
-                img = Image.open(fh).convert("L")
-                img.load()
-        return self.transform(img), int(row["label"])
-
-
-# ---------------------------------------------------------------------------
-# Transforms
-# ---------------------------------------------------------------------------
-
-def _build_train_transform(mean: float, std: float) -> transforms.Compose:
-    """Resize → NLM → CLAHE → augment → tensor → normalize."""
-    return transforms.Compose([
-        transforms.Resize((224, 224)),
-        NLMFilter(h=5),
-        CLAHE(clip_limit=1.0, tile_grid=(16, 16)),
-        transforms.RandomRotation(degrees=10),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[mean], std=[std]),
-    ])
-
-
-def _build_eval_transform(mean: float, std: float) -> transforms.Compose:
-    """Resize → NLM → CLAHE → tensor → normalize. No augmentation."""
-    return transforms.Compose([
-        transforms.Resize((224, 224)),
-        NLMFilter(h=5),
-        CLAHE(clip_limit=1.0, tile_grid=(16, 16)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[mean], std=[std]),
-    ])
-
-
-def compute_mean_std(df: "pd.DataFrame", zip_path: Path, file_map: dict) -> tuple[float, float]:
-    """
-    Compute mean and std from the training set after resize + NLM + CLAHE.
-    Used for normalization instead of ImageNet stats.
-    """
-    base = transforms.Compose([
-        transforms.Resize((224, 224)),
-        NLMFilter(h=5),
-        CLAHE(clip_limit=1.0, tile_grid=(16, 16)),
-        transforms.ToTensor(),
-    ])
-
-    pixel_sum  = 0.0
-    pixel_sq   = 0.0
+    pixel_sum   = 0.0
+    pixel_sq    = 0.0
     pixel_count = 0
 
     print("Computing dataset mean and std...")
-    with zipfile.ZipFile(zip_path, "r") as zf:
-        for _, row in df.iterrows():
-            with zf.open(file_map[row["filename"]]) as fh:
+    with zipfile.ZipFile(split_ds.zip_path, "r") as zf:
+        for _, row in split_ds.data.iterrows():
+            with zf.open(split_ds.file_map[row["filename"]]) as fh:
                 img = Image.open(fh).convert("L")
                 img.load()
-            t = base(img)
+            t = pipeline(img)
             pixel_sum   += t.sum().item()
             pixel_sq    += (t ** 2).sum().item()
             pixel_count += t.numel()
@@ -237,29 +176,29 @@ class KLGradeClassifier:
 
     def __init__(
         self,
-        joint:     str,
+        joint:     str | None = None,
         n_classes: int = 5,
         out_dir:   Path | str | None = None,
         device:    str | None = None,
         use_fake:  bool = False,
     ) -> None:
-        self.joint     = joint
+        self.joint     = joint    # may be None until train() is called
         self.n_classes = n_classes
         self.use_fake  = use_fake
 
         timestamp      = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         label          = "real_fake" if use_fake else "real_only"
-        self.out_dir   = Path(out_dir or _DEFAULT_OUT / f"{joint}_{label}_{timestamp}")
+        folder_joint   = joint or "all"
+        self.out_dir   = Path(out_dir or _DEFAULT_OUT / f"{folder_joint}_{label}_{timestamp}")
         self.out_dir.mkdir(parents=True, exist_ok=True)
 
         self.device = torch.device(
             device if device else ("cuda" if torch.cuda.is_available() else "cpu")
         )
-        print(f"KLGradeClassifier — joint={joint}, device={self.device}")
+        print(f"KLGradeClassifier — joint={self.joint or 'inferred from data'}, device={self.device}")
 
         self.model    = _build_resnet18(n_classes).to(self.device)
-        self._mean    = 0.5
-        self._std     = 0.5
+        self._eval_tf: "transforms.Compose | None" = None
         self._history: dict[str, list] = {
             "train_loss": [], "val_loss": [],
             "train_acc":  [], "val_acc":  [],
@@ -269,17 +208,18 @@ class KLGradeClassifier:
 
     def train(
         self,
-        train_ds:      "_SplitDataset",
-        val_ds:        "_SplitDataset",
-        epochs:        int   = 30,
-        batch_size:    int   = 32,
-        lr:            float = 2e-4,
-        optimizer_cls: type  = torch.optim.AdamW,
+        train_ds:        "_SplitDataset",
+        val_ds:          "_SplitDataset",
+        epochs:          int   = 30,
+        batch_size:      int   = 32,
+        lr:              float = 2e-4,
+        optimizer_cls:   type  = torch.optim.AdamW,
         optimizer_kwargs: dict | None = None,
-        sampler:       bool  = True,
-        compute_stats: bool  = True,
-        patience:      int   = 5,
-        min_delta:     float = 1e-3,
+        sampler:         bool  = True,
+        patience:        int   = 5,
+        min_delta:       float = 1e-3,
+        train_transform: "transforms.Compose | None" = None,
+        eval_transform:  "transforms.Compose | None" = None,
     ) -> None:
         """
         Train the classifier on the given splits.
@@ -295,11 +235,19 @@ class KLGradeClassifier:
                            e.g. torch.optim.SGD, torch.optim.Adam
         optimizer_kwargs : extra kwargs passed to optimizer e.g. {'momentum': 0.9}
         sampler          : use WeightedRandomSampler to balance KL grade frequency
-        compute_stats    : compute mean/std from training data for normalisation
-                           set False to reuse previously computed stats
         patience         : stop if val accuracy doesn't improve for this many epochs
         min_delta        : minimum improvement in val accuracy to count as progress
+        train_transform  : custom pipeline for training split
+                           defaults to standard ResNet18 ImageNet pipeline
+        eval_transform   : custom pipeline for val and test splits
+                           defaults to standard ResNet18 ImageNet pipeline
         """
+        # Read joint type directly from the data
+        joints_in_data = train_ds.data["joint"].unique().tolist()
+        if self.joint is None:
+            self.joint = joints_in_data[0] if len(joints_in_data) == 1 else "mixed"
+        print(f"Joint type: {self.joint.upper()} — grades: {sorted(train_ds.data['label'].unique().tolist())}")
+
         ckpt = self.out_dir / "best_model.pt"
         if ckpt.exists():
             print(f"Checkpoint found at {ckpt} — loading and skipping training.")
@@ -307,19 +255,28 @@ class KLGradeClassifier:
             self.load(ckpt)
             return
 
-        # Compute dataset-specific mean and std
-        if compute_stats:
-            self._mean, self._std = compute_mean_std(
-                train_ds.data, train_ds.zip_path, train_ds.file_map
-            )
+        # Default pipelines follow standard ResNet18 ImageNet convention
+        train_tf = train_transform or transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomRotation(degrees=10),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[_IMAGENET_MEAN], std=[_IMAGENET_STD]),
+        ])
+        eval_tf = eval_transform or transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[_IMAGENET_MEAN], std=[_IMAGENET_STD]),
+        ])
 
-        train_tf = _build_train_transform(self._mean, self._std)
-        eval_tf  = _build_eval_transform(self._mean, self._std)
+        train_ds.transform = train_tf
+        val_ds.transform   = eval_tf
+        self._eval_tf      = eval_tf   # store for use in predict()
 
-        train_loader = self._make_loader(train_ds, train_tf, batch_size,
-                                         shuffle=True, sampler=sampler)
-        val_loader   = self._make_loader(val_ds,   eval_tf,  batch_size,
-                                         shuffle=False, sampler=False)
+        train_loader = self._make_loader(train_ds, batch_size, shuffle=True,  use_sampler=sampler)
+        val_loader   = self._make_loader(val_ds,   batch_size, shuffle=False, use_sampler=False)
 
         criterion = nn.CrossEntropyLoss(
             weight=self._class_weights(train_ds).to(self.device)
@@ -343,8 +300,8 @@ class KLGradeClassifier:
             "optimizer_kwargs": opt_kwargs,
             "patience":         patience,
             "min_delta":        min_delta,
-            "mean":             self._mean,
-            "std":              self._std,
+            "mean":             _IMAGENET_MEAN,
+            "std":              _IMAGENET_STD,
             "train_transform":  str(train_tf),
             "eval_transform":   str(eval_tf),
         }
@@ -392,8 +349,8 @@ class KLGradeClassifier:
                 epochs_no_imp = 0
                 torch.save({
                     "model_state": self.model.state_dict(),
-                    "mean":        self._mean,
-                    "std":         self._std,
+                    "mean":        _IMAGENET_MEAN,
+                    "std":         _IMAGENET_STD,
                     "joint":       self.joint,
                     "config":      self._config,
                 }, ckpt)
@@ -415,31 +372,39 @@ class KLGradeClassifier:
 
     def evaluate(
         self,
-        test_ds:    "_SplitDataset",
-        batch_size: int = 32,
+        test_ds:        "_SplitDataset",
+        batch_size:     int = 32,
+        eval_transform: "transforms.Compose | None" = None,
     ) -> dict:
         """
         Evaluate on test set and save all results.
 
         Parameters
         ----------
-        test_ds    : test _SplitDataset — should always be real images only
-        batch_size : samples per batch
+        test_ds        : test _SplitDataset — should always be real images only
+        batch_size     : samples per batch
+        eval_transform : custom eval pipeline — defaults to the same as train()
 
         Returns
         -------
-        dict with keys: accuracy, f1, auc, report
+        dict with keys: accuracy, macro_f1, macro_auc, f1_per_class, report
         """
-        eval_tf     = _build_eval_transform(self._mean, self._std)
-        test_loader = self._make_loader(test_ds, eval_tf, batch_size,
-                                        shuffle=False, sampler=False)
+        eval_tf = eval_transform or transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[_IMAGENET_MEAN], std=[_IMAGENET_STD]),
+        ])
+        test_ds.transform  = eval_tf
+        self._eval_tf      = eval_tf   # keep in sync if evaluate() called separately
+        test_loader = self._make_loader(test_ds, batch_size, shuffle=False, use_sampler=False)
 
         all_probs  = []
         all_labels = []
         self.model.eval()
 
         with torch.no_grad():
-            for imgs, labels in tqdm(test_loader, desc="Evaluating"):
+            for imgs, labels, _ in tqdm(test_loader, desc="Evaluating"):
                 imgs = imgs.to(self.device)
                 logits = self.model(imgs)
                 probs  = F.softmax(logits, dim=1).cpu().numpy()
@@ -511,6 +476,7 @@ class KLGradeClassifier:
     ) -> dict:
         """
         Predict KL grade and confidence for a single image.
+        Uses the same eval transform pipeline set during train() or evaluate().
 
         Parameters
         ----------
@@ -521,12 +487,18 @@ class KLGradeClassifier:
         dict with keys:
             predicted_grade : int   — predicted KL grade
             confidence      : float — probability of predicted grade
-            probabilities   : list  — probability for each KL grade [KL0..KL4]
+            probabilities   : dict  — probability for each KL grade
         """
         if not isinstance(image, Image.Image):
             image = Image.fromarray(image)
 
-        tf     = _build_eval_transform(self._mean, self._std)
+        # Use stored eval transform — falls back to ImageNet default if not yet set
+        tf = self._eval_tf or transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[_IMAGENET_MEAN], std=[_IMAGENET_STD]),
+        ])
         tensor = tf(image).unsqueeze(0).to(self.device)
 
         self.model.eval()
@@ -547,37 +519,26 @@ class KLGradeClassifier:
         path = Path(path or self.out_dir / "best_model.pt")
         ckpt = torch.load(path, map_location=self.device, weights_only=False)
         self.model.load_state_dict(ckpt["model_state"])
-        self._mean   = ckpt.get("mean",   0.5)
-        self._std    = ckpt.get("std",    0.5)
         self._config = ckpt.get("config", {})
         print(f"Loaded checkpoint from {path}")
         if self._config:
             print(f"  optimizer : {self._config.get('optimizer')}")
-            print(f"  mean/std  : {self._mean:.4f} / {self._std:.4f}")
             print(f"  pipeline  : {self._config.get('train_transform', 'unknown')}")
 
     # ── Internal helpers ──────────────────────────────────────────────────────
 
     def _make_loader(
         self,
-        split_ds,
-        transform,
+        split_ds:   _SplitDataset,
         batch_size: int,
         shuffle:    bool,
-        sampler:    bool,
+        use_sampler: bool,
     ) -> DataLoader:
-        dataset = _JointDataset(
-            df        = split_ds.data,
-            zip_path  = split_ds.zip_path,
-            file_map  = split_ds.file_map,
-            transform = transform,
-        )
-        if sampler:
-            weights  = self._sample_weights(split_ds)
-            s        = WeightedRandomSampler(weights, len(weights), replacement=True)
-            return DataLoader(dataset, batch_size=batch_size, sampler=s, num_workers=0)
-        return DataLoader(dataset, batch_size=batch_size,
-                          shuffle=shuffle, num_workers=0)
+        if use_sampler:
+            weights = self._sample_weights(split_ds)
+            s       = WeightedRandomSampler(weights, len(weights), replacement=True)
+            return DataLoader(split_ds, batch_size=batch_size, sampler=s, num_workers=0)
+        return DataLoader(split_ds, batch_size=batch_size, shuffle=shuffle, num_workers=0)
 
     def _class_weights(self, split_ds) -> torch.Tensor:
         """Inverse frequency class weights for CrossEntropyLoss."""
@@ -609,7 +570,7 @@ class KLGradeClassifier:
         self.model.train()
         total_loss = correct = total = 0
 
-        for imgs, labels in tqdm(loader, desc="  Train", leave=False):
+        for imgs, labels, _ in tqdm(loader, desc="  Train", leave=False):
             imgs, labels = imgs.to(self.device), labels.to(self.device)
             optimizer.zero_grad()
 
@@ -640,7 +601,7 @@ class KLGradeClassifier:
         total_loss = correct = total = 0
 
         with torch.no_grad():
-            for imgs, labels in tqdm(loader, desc="  Val  ", leave=False):
+            for imgs, labels, _ in tqdm(loader, desc="  Val  ", leave=False):
                 imgs, labels = imgs.to(self.device), labels.to(self.device)
                 logits       = self.model(imgs)
                 loss         = criterion(logits, labels)

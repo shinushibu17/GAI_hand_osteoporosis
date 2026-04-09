@@ -17,6 +17,7 @@ GAI_hand_osteoporosis/
 │   ├── preprocessing.py         ← dataset splitting + transform comparison
 │   └── transforms.py            ← custom torchvision-compatible transforms
 ├── models/
+│   ├── kl_classifier.py         ← ResNet18 KL grade classifier
 │   └── kl_classifier/
 │       └── pip_real_only_2025-04-08_14-30-22/   ← timestamped run output
 │           ├── best_model.pt
@@ -32,7 +33,6 @@ GAI_hand_osteoporosis/
 │       └── resnet18_imagenet.pth   ← ImageNet pretrained weights (cached locally)
 ├── notebooks/
 │   └── EDA_Display.ipynb
-├── kl_classifier.py
 ├── requirements.txt
 └── README.md
 ```
@@ -72,7 +72,7 @@ model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
 torch.save(model.state_dict(), path)
 ```
 
-If `pretrained/ResNet18/resnet18_imagenet.pth` exists, the classifier loads from it automatically — no internet required.
+Once saved, the classifier loads from this file automatically — no internet required on subsequent runs.
 
 ---
 
@@ -80,7 +80,7 @@ If `pretrained/ResNet18/resnet18_imagenet.pth` exists, the classifier loads from
 
 ### `data_prep/raw_data.py` — `RawImageDataset`
 
-Lazy-loading dataset. Only metadata is held in memory — images are read from the zip on demand, making it safe for 40k+ images.
+Lazy-loading dataset. Only metadata (`filename | label | joint`) is held in memory — images are read from the zip on demand, making it safe for 40k+ images.
 
 ```python
 from data_prep.raw_data import RawImageDataset
@@ -91,11 +91,12 @@ raw.summary()                # KL grade % distribution with bar charts
 raw.compute_histograms()     # per-joint grayscale intensity histograms
 raw.plot_image_size()        # scatter plot of image dimensions by joint
 raw.display_image(0)         # display single image inline
+raw.display_image("9000099_pip2.png")
 ```
 
 ### `data_prep/preprocessing.py` — `CleanImageDataset`
 
-EDA and splitting layer. Does not apply transforms — that belongs in the model class.
+EDA and splitting layer. Does not apply transforms — that belongs in the model class. `compare_images()` accepts a dict of named pipelines so you can visually compare any combination of transforms on a single image.
 
 ```python
 from data_prep.preprocessing import CleanImageDataset
@@ -105,42 +106,45 @@ ds = CleanImageDataset(raw, joint="pip")              # single joint
 ds = CleanImageDataset(raw, joint=["pip", "dip"])     # multiple joints
 ds = CleanImageDataset(raw, small=True, pct=0.1)      # 10% stratified subsample
 
-# Compare preprocessing pipelines visually
+# Compare any preprocessing pipelines visually
 from torchvision import transforms
-from data_prep.transforms import NLMFilter, CLAHE
+from data_prep.transforms import NLMFilter, CLAHE, BilateralFilter
 
 pipelines = {
-    "NLM + CLAHE": transforms.Compose([NLMFilter(), CLAHE(), transforms.ToTensor()]),
-    "CLAHE only":  transforms.Compose([CLAHE(), transforms.ToTensor()]),
+    "NLM + CLAHE":      transforms.Compose([NLMFilter(), CLAHE(), transforms.ToTensor()]),
+    "Bilateral + CLAHE":transforms.Compose([BilateralFilter(), CLAHE(), transforms.ToTensor()]),
+    "CLAHE only":       transforms.Compose([CLAHE(), transforms.ToTensor()]),
 }
 ds.compare_images(0, pipelines)
 
-# Stratified split → _SplitDataset objects (transform set by model class)
+# Stratified split → _SplitDataset objects
+# Transforms are NOT set here — the model class sets them
 train_ds, val_ds, test_ds = ds.split()
 ```
 
 ### `data_prep/transforms.py` — Custom Transforms
 
-Torchvision-compatible grayscale transforms (PIL → PIL). Slot directly into `transforms.Compose`.
+Torchvision-compatible grayscale transforms (PIL → PIL). Slot directly into `transforms.Compose`. None of these are available in torchvision natively.
 
 | Transform | Description |
 |---|---|
-| `CLAHE(clip_limit, tile_grid)` | Local contrast enhancement — not available in torchvision |
+| `CLAHE(clip_limit, tile_grid)` | Local contrast enhancement |
 | `NLMFilter(h, template_window, search_window)` | Non-local means denoising — suppresses scan line artifacts |
 | `BilateralFilter(d, sigma_color, sigma_space)` | Edge-preserving smoothing |
-| `MedianFilter(kernel_size)` | Median blur for salt-and-pepper noise |
+| `MedianFilter(kernel_size)` | Median blur |
 | `InvertGrayscale()` | Bitwise inversion |
 
 ```python
 from data_prep.transforms import CLAHE, NLMFilter
 from torchvision import transforms
 
-pipeline = transforms.Compose([
-    transforms.Resize((224, 224)),
+custom_pipeline = transforms.Compose([
+    transforms.Resize(256),
+    transforms.CenterCrop(224),
     NLMFilter(h=5),
     CLAHE(clip_limit=1.0, tile_grid=(16, 16)),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5], std=[0.5]),
+    transforms.Normalize(mean=[0.485], std=[0.229]),
 ])
 ```
 
@@ -148,36 +152,62 @@ pipeline = transforms.Compose([
 
 ## KL Grade Classifier
 
-### `kl_classifier.py` — `KLGradeClassifier`
+### `models/kl_classifier.py` — `KLGradeClassifier`
 
-ResNet18 classifier trained per joint type to evaluate CycleGAN output quality. Trained on real images only (baseline) and real + synthetic images (experimental) to measure the impact of generated data.
+ResNet18 classifier trained per joint type to evaluate CycleGAN output quality. The same test set (real images only) is used for both experiments so comparisons are fair.
 
-**Training pipeline per image:**
+**Default training pipeline (standard ResNet18 ImageNet convention):**
 ```
-Resize(224×224) → RandomRotation(±10°) → NLMFilter → CLAHE → ToTensor → Normalize
-```
-
-**Evaluation pipeline (no augmentation):**
-```
-Resize(224×224) → NLMFilter → CLAHE → ToTensor → Normalize
+Resize(256) → CenterCrop(224) → RandomHorizontalFlip → RandomRotation(±10°) → ToTensor → Normalize(ImageNet)
 ```
 
-Normalization mean and std are computed from the actual training data rather than ImageNet stats.
+**Default eval/predict pipeline:**
+```
+Resize(256) → CenterCrop(224) → ToTensor → Normalize(ImageNet)
+```
+
+Normalization uses ImageNet grayscale stats (`mean=0.485, std=0.229`) since the model uses pretrained ImageNet weights. Pass a custom pipeline to override.
+
+The joint type is read directly from the training data — no need to specify it manually.
 
 #### Train
 
 ```python
-from kl_classifier import KLGradeClassifier
+from models.kl_classifier import KLGradeClassifier
 
-# Real only — baseline
-clf_real = KLGradeClassifier(joint="pip", use_fake=False)
+# Real only — baseline (joint inferred from data)
+clf_real = KLGradeClassifier(use_fake=False)
 clf_real.train(train_ds, val_ds, epochs=30, batch_size=32)
 clf_real.evaluate(test_ds)   # always evaluate on real images only
 
 # Real + synthetic — experimental
-clf_fake = KLGradeClassifier(joint="pip", use_fake=True)
+clf_fake = KLGradeClassifier(use_fake=True)
 clf_fake.train(train_ds_with_fake, val_ds, epochs=30)
 clf_fake.evaluate(test_ds)   # same test set — fair comparison
+
+# Custom transform pipeline
+from data_prep.transforms import NLMFilter, CLAHE
+from torchvision import transforms
+
+my_train_tf = transforms.Compose([
+    transforms.Resize(256),
+    transforms.CenterCrop(224),
+    NLMFilter(h=5),
+    CLAHE(clip_limit=1.0),
+    transforms.RandomHorizontalFlip(),
+    transforms.RandomRotation(10),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485], std=[0.229]),
+])
+my_eval_tf = transforms.Compose([
+    transforms.Resize(256),
+    transforms.CenterCrop(224),
+    NLMFilter(h=5),
+    CLAHE(clip_limit=1.0),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485], std=[0.229]),
+])
+clf.train(train_ds, val_ds, train_transform=my_train_tf, eval_transform=my_eval_tf)
 ```
 
 #### Custom optimizer
@@ -190,7 +220,17 @@ clf.train(
 )
 ```
 
+#### Early stopping
+
+Training stops automatically if validation accuracy does not improve by `min_delta` for `patience` consecutive epochs:
+
+```python
+clf.train(train_ds, val_ds, patience=5, min_delta=1e-3)
+```
+
 #### Predict — CycleGAN evaluation
+
+`predict()` uses the same eval pipeline set during training automatically.
 
 ```python
 result = clf.predict(generated_image)
@@ -204,7 +244,7 @@ result = clf.predict(generated_image)
 #### Compare F1 — real vs synthetic
 
 ```python
-from kl_classifier import compare_f1
+from models.kl_classifier import compare_f1
 
 # Using classifier instances (after evaluate())
 compare_f1(clf_real, clf_fake)
@@ -216,6 +256,8 @@ compare_f1(
 )
 ```
 
+Saves `f1_comparison.png` to the synthetic model's output folder automatically.
+
 #### Outputs per run
 
 Every training run creates a timestamped folder under `models/kl_classifier/`:
@@ -223,8 +265,8 @@ Every training run creates a timestamped folder under `models/kl_classifier/`:
 ```
 pip_real_only_2025-04-08_14-30-22/
 ├── best_model.pt          ← weights + embedded config
-├── config.json            ← optimizer, transforms, hyperparameters
-├── results.json           ← accuracy, macro F1, AUC, per-class F1
+├── config.json            ← optimizer, transform pipelines, hyperparameters
+├── results.json           ← accuracy, macro F1, AUC, per-class F1 per KL grade
 ├── training_curves.png
 ├── confusion_matrix.png
 ├── roc_curves.png
