@@ -18,8 +18,8 @@ GAI_hand_osteoporosis/
 │   └── transforms.py            ← custom torchvision-compatible transforms
 ├── models/
 │   ├── kl_classifier.py         ← ResNet18 KL grade classifier
-│   └── kl_classifier/
-│       └── pip_real_only_2025-04-08_14-30-22/   ← timestamped run output
+│   └── kl_classifier/           ← timestamped run outputs
+│       └── pip_real_only_2025-04-08_14-30-22/
 │           ├── best_model.pt
 │           ├── config.json
 │           ├── results.json
@@ -30,7 +30,7 @@ GAI_hand_osteoporosis/
 │           └── test_labels.npy
 ├── pretrained/
 │   └── ResNet18/
-│       └── resnet18_imagenet.pth   ← ImageNet pretrained weights (cached locally)
+│       └── resnet18_imagenet.pth   ← ImageNet pretrained weights
 ├── notebooks/
 │   └── EDA_Display.ipynb
 ├── requirements.txt
@@ -72,7 +72,7 @@ model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
 torch.save(model.state_dict(), path)
 ```
 
-Once saved, the classifier loads from this file automatically — no internet required on subsequent runs.
+Once saved the classifier loads it automatically — no internet required on subsequent runs. If the file is missing it falls back to downloading from PyTorch hub.
 
 ---
 
@@ -90,13 +90,15 @@ print(raw.data.head())       # filename | label | joint
 raw.summary()                # KL grade % distribution with bar charts
 raw.compute_histograms()     # per-joint grayscale intensity histograms
 raw.plot_image_size()        # scatter plot of image dimensions by joint
-raw.display_image(0)         # display single image inline
-raw.display_image("9000099_pip2.png")
+raw.display_image(0)         # display by index
+raw.display_image("9000099_pip2.png")   # display by filename
 ```
 
 ### `data_prep/preprocessing.py` — `CleanImageDataset`
 
-EDA and splitting layer. Does not apply transforms — that belongs in the model class. `compare_images()` accepts a dict of named pipelines so you can visually compare any combination of transforms on a single image.
+EDA and splitting layer. Does not apply transforms — transforms are set by the model class after splitting.
+
+`compare_images()` accepts a dict of named pipelines to visually compare any combination of transforms on a single image.
 
 ```python
 from data_prep.preprocessing import CleanImageDataset
@@ -106,25 +108,25 @@ ds = CleanImageDataset(raw, joint="pip")              # single joint
 ds = CleanImageDataset(raw, joint=["pip", "dip"])     # multiple joints
 ds = CleanImageDataset(raw, small=True, pct=0.1)      # 10% stratified subsample
 
-# Compare any preprocessing pipelines visually
+# Compare preprocessing pipelines visually
 from torchvision import transforms
 from data_prep.transforms import NLMFilter, CLAHE, BilateralFilter
 
 pipelines = {
-    "NLM + CLAHE":      transforms.Compose([NLMFilter(), CLAHE(), transforms.ToTensor()]),
-    "Bilateral + CLAHE":transforms.Compose([BilateralFilter(), CLAHE(), transforms.ToTensor()]),
-    "CLAHE only":       transforms.Compose([CLAHE(), transforms.ToTensor()]),
+    "NLM + CLAHE":       transforms.Compose([NLMFilter(), CLAHE(), transforms.ToTensor()]),
+    "Bilateral + CLAHE": transforms.Compose([BilateralFilter(), CLAHE(), transforms.ToTensor()]),
+    "CLAHE only":        transforms.Compose([CLAHE(), transforms.ToTensor()]),
 }
 ds.compare_images(0, pipelines)
 
 # Stratified split → _SplitDataset objects
-# Transforms are NOT set here — the model class sets them
+# Transforms are NOT applied here — the model class sets them
 train_ds, val_ds, test_ds = ds.split()
 ```
 
 ### `data_prep/transforms.py` — Custom Transforms
 
-Torchvision-compatible grayscale transforms (PIL → PIL). Slot directly into `transforms.Compose`. None of these are available in torchvision natively.
+Torchvision-compatible grayscale transforms (PIL → PIL). All slot directly into `transforms.Compose`. None are available in torchvision natively.
 
 | Transform | Description |
 |---|---|
@@ -154,21 +156,21 @@ custom_pipeline = transforms.Compose([
 
 ### `models/kl_classifier.py` — `KLGradeClassifier`
 
-ResNet18 classifier trained per joint type to evaluate CycleGAN output quality. The same test set (real images only) is used for both experiments so comparisons are fair.
+ResNet18 classifier trained per joint type to evaluate CycleGAN output quality. Two experiments are run per joint — real images only (baseline) and real + synthetic images — using the same held-out test set for fair comparison.
 
-**Default training pipeline (standard ResNet18 ImageNet convention):**
+The joint type is inferred automatically from the training data — no need to specify it manually.
+
+**Default training pipeline (standard ResNet18 / ImageNet convention):**
 ```
-Resize(256) → CenterCrop(224) → RandomHorizontalFlip → RandomRotation(±10°) → ToTensor → Normalize(ImageNet)
+Resize(256) → CenterCrop(224) → RandomHorizontalFlip → RandomRotation(±10°) → ToTensor → Normalize(0.485, 0.229)
 ```
 
 **Default eval/predict pipeline:**
 ```
-Resize(256) → CenterCrop(224) → ToTensor → Normalize(ImageNet)
+Resize(256) → CenterCrop(224) → ToTensor → Normalize(0.485, 0.229)
 ```
 
-Normalization uses ImageNet grayscale stats (`mean=0.485, std=0.229`) since the model uses pretrained ImageNet weights. Pass a custom pipeline to override.
-
-The joint type is read directly from the training data — no need to specify it manually.
+`predict()` automatically uses the same eval pipeline set during `train()` or `evaluate()` — no manual pipeline management needed.
 
 #### Train
 
@@ -184,8 +186,11 @@ clf_real.evaluate(test_ds)   # always evaluate on real images only
 clf_fake = KLGradeClassifier(use_fake=True)
 clf_fake.train(train_ds_with_fake, val_ds, epochs=30)
 clf_fake.evaluate(test_ds)   # same test set — fair comparison
+```
 
-# Custom transform pipeline
+#### Custom transform pipeline
+
+```python
 from data_prep.transforms import NLMFilter, CLAHE
 from torchvision import transforms
 
@@ -222,15 +227,13 @@ clf.train(
 
 #### Early stopping
 
-Training stops automatically if validation accuracy does not improve by `min_delta` for `patience` consecutive epochs:
+Stops automatically if val accuracy does not improve by `min_delta` for `patience` consecutive epochs:
 
 ```python
 clf.train(train_ds, val_ds, patience=5, min_delta=1e-3)
 ```
 
 #### Predict — CycleGAN evaluation
-
-`predict()` uses the same eval pipeline set during training automatically.
 
 ```python
 result = clf.predict(generated_image)
@@ -279,7 +282,7 @@ pip_real_only_2025-04-08_14-30-22/
 
 ## Notebook
 
-`notebooks/EDA_Display.ipynb` — exploratory data analysis. Add this at the top of the notebook:
+`notebooks/EDA_Display.ipynb` — exploratory data analysis. Add this at the top:
 
 ```python
 import sys

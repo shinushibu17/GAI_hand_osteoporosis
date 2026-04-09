@@ -41,6 +41,8 @@ Usage
 from __future__ import annotations
 
 import sys
+import json
+import time
 import zipfile
 from pathlib import Path
 
@@ -54,6 +56,7 @@ from PIL import Image
 from sklearn.metrics import (
     ConfusionMatrixDisplay,
     classification_report,
+    f1_score,
     roc_auc_score,
     roc_curve,
 )
@@ -289,7 +292,6 @@ class KLGradeClassifier:
         scaler     = torch.amp.GradScaler() if self.device.type == "cuda" else None
 
         # Build human-readable config to save alongside the model
-        import json, time as _time
         self._config = {
             "joint":            self.joint,
             "use_fake":         self.use_fake,
@@ -318,7 +320,6 @@ class KLGradeClassifier:
               f"| patience={patience} min_delta={min_delta}")
 
         for epoch in range(1, epochs + 1):
-            import time
             t0 = time.time()
 
             tr_loss, tr_acc = self._train_epoch(
@@ -389,14 +390,14 @@ class KLGradeClassifier:
         -------
         dict with keys: accuracy, macro_f1, macro_auc, f1_per_class, report
         """
-        eval_tf = eval_transform or transforms.Compose([
+        eval_tf = eval_transform or self._eval_tf or transforms.Compose([
             transforms.Resize(256),
             transforms.CenterCrop(224),
             transforms.ToTensor(),
             transforms.Normalize(mean=[_IMAGENET_MEAN], std=[_IMAGENET_STD]),
         ])
-        test_ds.transform  = eval_tf
-        self._eval_tf      = eval_tf   # keep in sync if evaluate() called separately
+        test_ds.transform = eval_tf
+        self._eval_tf     = eval_tf
         test_loader = self._make_loader(test_ds, batch_size, shuffle=False, use_sampler=False)
 
         all_probs  = []
@@ -410,9 +411,6 @@ class KLGradeClassifier:
                 probs  = F.softmax(logits, dim=1).cpu().numpy()
                 all_probs.append(probs)
                 all_labels.extend(labels.numpy())
-
-        from sklearn.metrics import f1_score
-        import json
 
         probs  = np.concatenate(all_probs)
         labels = np.array(all_labels)
@@ -476,7 +474,7 @@ class KLGradeClassifier:
     ) -> dict:
         """
         Predict KL grade and confidence for a single image.
-        Uses the same eval transform pipeline set during train() or evaluate().
+        Uses the eval transform set during train() or evaluate().
 
         Parameters
         ----------
@@ -489,17 +487,15 @@ class KLGradeClassifier:
             confidence      : float — probability of predicted grade
             probabilities   : dict  — probability for each KL grade
         """
+        if self._eval_tf is None:
+            raise RuntimeError(
+                "No eval transform set. Call train() or evaluate() before predict()."
+            )
+
         if not isinstance(image, Image.Image):
             image = Image.fromarray(image)
 
-        # Use stored eval transform — falls back to ImageNet default if not yet set
-        tf = self._eval_tf or transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[_IMAGENET_MEAN], std=[_IMAGENET_STD]),
-        ])
-        tensor = tf(image).unsqueeze(0).to(self.device)
+        tensor = self._eval_tf(image).unsqueeze(0).to(self.device)
 
         self.model.eval()
         with torch.no_grad():
@@ -741,10 +737,10 @@ def compare_f1(
 
     fig, ax = plt.subplots(figsize=(10, 6), constrained_layout=True)
 
-    bars_real = ax.bar(x - width / 2, real_vals, width,
-                       label=real_label, color="#4C72B0", alpha=0.85)
-    bars_syn  = ax.bar(x + width / 2, syn_vals,  width,
-                       label=synthetic_label, color="#DD8452", alpha=0.85)
+    ax.bar(x - width / 2, real_vals, width,
+           label=real_label, color="#4C72B0", alpha=0.85)
+    ax.bar(x + width / 2, syn_vals,  width,
+           label=synthetic_label, color="#DD8452", alpha=0.85)
 
     # Annotate each synthetic bar with % improvement
     for i, (rv, sv) in enumerate(zip(real_vals, syn_vals)):
@@ -785,8 +781,6 @@ def compare_f1(
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    import sys
-    from pathlib import Path
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
     from data_prep.raw_data import RawImageDataset
