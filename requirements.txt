@@ -1,0 +1,11 @@
+torch>=2.0.0
+torchvision>=0.15.0
+numpy
+pandas
+scikit-learn
+Pillow
+diffusers>=0.25.0
+accelerate
+clean-fid>=0.1.35
+matplotlib>=3.7.0
+wandb

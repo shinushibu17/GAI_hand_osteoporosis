@@ -1,0 +1,75 @@
+  train: 2489 patients,  28751 images  | KL0=22004  KL1=3275  KL2=3109  KL3=213  KL4=150
+  val:  533 patients,   6163 images  | KL0=4737  KL1=670  KL2=679  KL3=38  KL4=39
+  test:  534 patients,   6137 images  | KL0=4748  KL1=592  KL2=696  KL3=57  KL4=44
+
+============================================================
+Baseline ResNet-18 — no augmentation, no tuning
+============================================================
+
+  Run 1/3
+Downloading: "https://download.pytorch.org/models/resnet18-f37072fd.pth" to /root/.cache/torch/hub/checkpoints/resnet18-f37072fd.pth
+  0%|                                                                                                                                     | 0.00/44.7M [00:00<?, ?B/s] 12%|███████████████▎                                                                                                            | 5.50M/44.7M [00:00<00:00, 55.1MB/s] 25%|███████████████████████████████▏                                                                                            | 11.2M/44.7M [00:00<00:00, 58.0MB/s] 40%|█████████████████████████████████████████████████▉                                                                          | 18.0M/44.7M [00:00<00:00, 63.6MB/s] 55%|████████████████████████████████████████████████████████████████████▋                                                       | 24.8M/44.7M [00:00<00:00, 66.2MB/s] 71%|███████████████████████████████████████████████████████████████████████████████████████▍                                    | 31.5M/44.7M [00:00<00:00, 67.6MB/s] 86%|██████████████████████████████████████████████████████████████████████████████████████████████████████████▏                 | 38.2M/44.7M [00:00<00:00, 68.4MB/s]100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 44.7M/44.7M [00:00<00:00, 66.5MB/s]
+    [baseline] run=1 ep=1/50  loss=1.3158  val_acc=0.7233  KL3=0.6842  KL4=0.0000  (15s)
+    [baseline] run=1 ep=2/50  loss=0.9475  val_acc=0.6915  KL3=0.5000  KL4=0.5641  (13s)
+    [baseline] run=1 ep=3/50  loss=0.8659  val_acc=0.6998  KL3=0.6579  KL4=0.3077  (13s)
+    [baseline] run=1 ep=4/50  loss=0.7750  val_acc=0.7229  KL3=0.6316  KL4=0.4872  (13s)
+    [baseline] run=1 ep=5/50  loss=0.6859  val_acc=0.7649  KL3=0.6842  KL4=0.2821  (13s)
+    [baseline] run=1 ep=6/50  loss=0.6888  val_acc=0.7629  KL3=0.4211  KL4=0.5641  (13s)
+    [baseline] run=1 ep=7/50  loss=0.6450  val_acc=0.7696  KL3=0.3947  KL4=0.6154  (13s)
+    [baseline] run=1 ep=8/50  loss=0.5911  val_acc=0.7586  KL3=0.5263  KL4=0.2821  (13s)
+    [baseline] run=1 ep=9/50  loss=0.5851  val_acc=0.7662  KL3=0.7895  KL4=0.0513  (13s)
+    [baseline] run=1 ep=10/50  loss=0.5977  val_acc=0.7835  KL3=0.5789  KL4=0.1282  (13s)
+  train: 2489 patients,  28751 images  | KL0=22004  KL1=3275  KL2=3109  KL3=213  KL4=150
+  val:  533 patients,   6163 images  | KL0=4737  KL1=670  KL2=679  KL3=38  KL4=39
+  test:  534 patients,   6137 images  | KL0=4748  KL1=592  KL2=696  KL3=57  KL4=44
+
+============================================================
+Baseline ResNet-18 — no augmentation, no tuning
+============================================================
+
+  Run 1/3
+    [baseline] run=1 ep=1/50  loss=1.3286  val_acc=0.7654  KL3=0.0263  KL4=0.7436  (19s)
+    [baseline] run=1 ep=2/50  loss=0.9348  val_acc=0.6179  KL3=0.4737  KL4=0.6923  (17s)
+    [baseline] run=1 ep=3/50  loss=0.8315  val_acc=0.6953  KL3=0.8684  KL4=0.0256  (17s)
+    [baseline] run=1 ep=4/50  loss=0.7549  val_acc=0.6800  KL3=0.3421  KL4=0.6667  (17s)
+    [baseline] run=1 ep=5/50  loss=0.7207  val_acc=0.6127  KL3=0.3421  KL4=0.7436  (17s)
+    [baseline] run=1 ep=6/50  loss=0.6811  val_acc=0.7860  KL3=0.4474  KL4=0.4615  (17s)
+    [baseline] run=1 ep=7/50  loss=0.6540  val_acc=0.7733  KL3=0.5263  KL4=0.2051  (17s)
+    [baseline] run=1 ep=8/50  loss=0.6204  val_acc=0.7689  KL3=0.3947  KL4=0.6410  (17s)
+    [baseline] run=1 ep=9/50  loss=0.5985  val_acc=0.6672  KL3=0.8421  KL4=0.2821  (17s)
+    [baseline] run=1 ep=10/50  loss=0.5633  val_acc=0.7675  KL3=0.3684  KL4=0.4103  (17s)
+    [baseline] run=1 ep=11/50  loss=0.5394  val_acc=0.6990  KL3=0.5526  KL4=0.2308  (17s)
+    [baseline] run=1 ep=12/50  loss=0.5367  val_acc=0.7973  KL3=0.7105  KL4=0.3333  (17s)
+    [baseline] run=1 ep=13/50  loss=0.5151  val_acc=0.7902  KL3=0.3421  KL4=0.4103  (17s)
+    [baseline] run=1 ep=14/50  loss=0.4516  val_acc=0.7214  KL3=0.6579  KL4=0.5641  (17s)
+    [baseline] run=1 ep=15/50  loss=0.5005  val_acc=0.7720  KL3=0.6053  KL4=0.3077  (17s)
+    [baseline] run=1 ep=16/50  loss=0.4491  val_acc=0.7771  KL3=0.5000  KL4=0.4359  (17s)
+    [baseline] run=1 ep=17/50  loss=0.4789  val_acc=0.7326  KL3=0.4211  KL4=0.7179  (17s)
+    [baseline] run=1 ep=18/50  loss=0.4471  val_acc=0.7576  KL3=0.6579  KL4=0.2564  (17s)
+    [baseline] run=1 ep=19/50  loss=0.4533  val_acc=0.7391  KL3=0.5789  KL4=0.3077  (17s)
+    [baseline] run=1 ep=20/50  loss=0.3996  val_acc=0.7157  KL3=0.5263  KL4=0.4359  (17s)
+    [baseline] run=1 ep=21/50  loss=0.3859  val_acc=0.8019  KL3=0.5000  KL4=0.3590  (17s)
+    [baseline] run=1 ep=22/50  loss=0.3722  val_acc=0.7646  KL3=0.3421  KL4=0.5385  (17s)
+    [baseline] run=1 ep=23/50  loss=0.3671  val_acc=0.7745  KL3=0.1842  KL4=0.7436  (17s)
+    [baseline] run=1 ep=24/50  loss=0.3552  val_acc=0.7500  KL3=0.5789  KL4=0.2564  (17s)
+    [baseline] run=1 ep=25/50  loss=0.3470  val_acc=0.7701  KL3=0.5789  KL4=0.2564  (17s)
+    [baseline] run=1 ep=26/50  loss=0.3373  val_acc=0.7517  KL3=0.6316  KL4=0.3333  (15s)
+    [baseline] run=1 ep=27/50  loss=0.3326  val_acc=0.7673  KL3=0.2632  KL4=0.4872  (15s)
+    [baseline] run=1 ep=28/50  loss=0.3450  val_acc=0.7344  KL3=0.2368  KL4=0.7436  (17s)
+    [baseline] run=1 ep=29/50  loss=0.3372  val_acc=0.7706  KL3=0.4737  KL4=0.6154  (17s)
+    [baseline] run=1 ep=30/50  loss=0.3462  val_acc=0.7951  KL3=0.4737  KL4=0.3333  (17s)
+    [baseline] run=1 ep=31/50  loss=0.3596  val_acc=0.7354  KL3=0.4211  KL4=0.6410  (17s)
+    [baseline] run=1 ep=32/50  loss=0.3620  val_acc=0.7696  KL3=0.3947  KL4=0.2564  (17s)
+    [baseline] run=1 ep=33/50  loss=0.3539  val_acc=0.7590  KL3=0.5000  KL4=0.3846  (17s)
+    [baseline] run=1 ep=34/50  loss=0.3090  val_acc=0.7728  KL3=0.2105  KL4=0.4103  (17s)
+    [baseline] run=1 ep=35/50  loss=0.3304  val_acc=0.7853  KL3=0.3684  KL4=0.4615  (17s)
+    [baseline] run=1 ep=36/50  loss=0.2855  val_acc=0.7829  KL3=0.5000  KL4=0.3077  (17s)
+    [baseline] run=1 ep=37/50  loss=0.2898  val_acc=0.7714  KL3=0.2895  KL4=0.3846  (17s)
+    [baseline] run=1 ep=38/50  loss=0.2719  val_acc=0.7892  KL3=0.2368  KL4=0.3846  (17s)
+    [baseline] run=1 ep=39/50  loss=0.2752  val_acc=0.7826  KL3=0.2632  KL4=0.6154  (17s)
+    [baseline] run=1 ep=40/50  loss=0.2539  val_acc=0.7972  KL3=0.2895  KL4=0.5128  (17s)
+    [baseline] run=1 ep=41/50  loss=0.2487  val_acc=0.7952  KL3=0.2632  KL4=0.4359  (17s)
+    [baseline] run=1 ep=42/50  loss=0.2576  val_acc=0.7918  KL3=0.4211  KL4=0.2821  (17s)
+    [baseline] run=1 ep=43/50  loss=0.2609  val_acc=0.7801  KL3=0.2895  KL4=0.3846  (17s)
+    [baseline] run=1 ep=44/50  loss=0.2373  val_acc=0.7746  KL3=0.3684  KL4=0.3846  (17s)
+    [baseline] run=1 ep=45/50  loss=0.2330  val_acc=0.7342  KL3=0.6579  KL4=0.2564  (17s)

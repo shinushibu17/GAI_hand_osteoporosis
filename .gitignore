@@ -1,0 +1,31 @@
+# Data
+data/
+
+# Checkpoints
+outputs/checkpoints/
+
+# Synthetic images
+outputs/synthetic/
+
+# Real test exports
+outputs/real_test/
+
+# Backups
+outputs_backup_*/
+logs_backup_*/
+
+# Keep figures and results
+!outputs/figures/
+!outputs/results/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pth
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Tuning temp images
+outputs/tune_fake/
+outputs/tune_real/

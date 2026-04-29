@@ -1,0 +1,25 @@
+
+Generating figures → outputs/figures
+
+── Confusion matrices ───────────────────────────────────────
+
+── Recall / F1 comparison charts ────────────────────────────
+/workspace/oa_augment/visualize_results.py:154: UserWarning: No artists with labels found to put in legend.  Note that artists whose label start with an underscore are ignored when legend() is called with no argument.
+  ax.legend(fontsize=9)
+  Saved: outputs/figures/comparison_recall_3.png
+/workspace/oa_augment/visualize_results.py:154: UserWarning: No artists with labels found to put in legend.  Note that artists whose label start with an underscore are ignored when legend() is called with no argument.
+  ax.legend(fontsize=9)
+  Saved: outputs/figures/comparison_recall_4.png
+/workspace/oa_augment/visualize_results.py:154: UserWarning: No artists with labels found to put in legend.  Note that artists whose label start with an underscore are ignored when legend() is called with no argument.
+  ax.legend(fontsize=9)
+  Saved: outputs/figures/comparison_macro_f1.png
+/workspace/oa_augment/visualize_results.py:154: UserWarning: No artists with labels found to put in legend.  Note that artists whose label start with an underscore are ignored when legend() is called with no argument.
+  ax.legend(fontsize=9)
+  Saved: outputs/figures/comparison_accuracy.png
+
+── Summary dashboard ────────────────────────────────────────
+  No baseline results found
+
+── Training curves ──────────────────────────────────────────
+
+All figures saved to outputs/figures

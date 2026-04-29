@@ -1,0 +1,47 @@
+=== GROUP dip on GPU 0 started Wed Apr 29 12:27:27 UTC 2026 ===
+
+Tuning on device: cuda:0  joint: dip
+  train: 2453 patients,   9220 images  | KL0=5870  KL1=1246  KL2=1827  KL3=154  KL4=123
+  val:  525 patients,   1985 images  | KL0=1319  KL1=253  KL2=350  KL3=35  KL4=28
+  test:  527 patients,   1987 images  | KL0=1298  KL1=275  KL2=368  KL3=26  KL4=20
+  train: 9220 images  KL3=154  KL4=123
+
+==================================================
+Tuning CycleGAN
+==================================================
+
+  CycleGAN config 1/3: {'lr': 0.0002, 'lambda_cycle': 10.0, 'lambda_identity': 5.0, 'n_resblocks': 6}
+=== GROUP dip on GPU 0 started Wed Apr 29 12:31:21 UTC 2026 ===
+
+Tuning on device: cuda:0  joint: dip
+  train: 2453 patients,   9220 images  | KL0=5870  KL1=1246  KL2=1827  KL3=154  KL4=123
+  val:  525 patients,   1985 images  | KL0=1319  KL1=253  KL2=350  KL3=35  KL4=28
+  test:  527 patients,   1987 images  | KL0=1298  KL1=275  KL2=368  KL3=26  KL4=20
+  train: 9220 images  KL3=154  KL4=123
+
+==================================================
+Tuning CycleGAN
+==================================================
+
+  CycleGAN config 1/3: {'lr': 0.0002, 'lambda_cycle': 10.0, 'lambda_identity': 5.0, 'n_resblocks': 6}
+  Config 1 FID = 215.77
+  ✓ New best config!
+
+  CycleGAN config 2/3: {'lr': 0.0001, 'lambda_cycle': 5.0, 'lambda_identity': 2.0, 'n_resblocks': 6}
+=== GROUP dip on GPU 0 started Wed Apr 29 12:45:46 UTC 2026 ===
+
+Tuning on device: cuda:0  joint: dip
+  train: 2453 patients,   9220 images  | KL0=5870  KL1=1246  KL2=1827  KL3=154  KL4=123
+  val:  525 patients,   1985 images  | KL0=1319  KL1=253  KL2=350  KL3=35  KL4=28
+  test:  527 patients,   1987 images  | KL0=1298  KL1=275  KL2=368  KL3=26  KL4=20
+  train: 9220 images  KL3=154  KL4=123
+
+==================================================
+Tuning CycleGAN
+==================================================
+
+  CycleGAN config 1/3: {'lr': 0.0002, 'lambda_cycle': 10.0, 'lambda_identity': 5.0, 'n_resblocks': 6}
+  Config 1 FID = 202.75
+  ✓ New best config!
+
+  CycleGAN config 2/3: {'lr': 0.0001, 'lambda_cycle': 5.0, 'lambda_identity': 2.0, 'n_resblocks': 6}

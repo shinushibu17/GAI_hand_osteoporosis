@@ -1,0 +1,19 @@
+  train: 2489 patients,  28751 images  | KL0=22004  KL1=3275  KL2=3109  KL3=213  KL4=150
+  val:  533 patients,   6163 images  | KL0=4737  KL1=670  KL2=679  KL3=38  KL4=39
+  test:  534 patients,   6137 images  | KL0=4748  KL1=592  KL2=696  KL3=57  KL4=44
+
+── Generation quality (FID + faithfulness) ─────────────────────
+  Exported 57 real KL3 test images to outputs/real_test/kl3
+  Exported 44 real KL4 test images to outputs/real_test/kl4
+  [SKIP] cyclegan/kl3: no images
+  [SKIP] cyclegan/kl4: no images
+  [SKIP] wgan_gp/kl3: no images
+  [SKIP] wgan_gp/kl4: no images
+  [SKIP] cvae/kl3: no images
+  [SKIP] cvae/kl4: no images
+  [SKIP] ddpm/kl3: no images
+  [SKIP] ddpm/kl4: no images
+  Saved to outputs/results/fid_faithfulness.json
+
+── Comparison table ─────────────────────────────────────────────
+  [WARN] outputs/results/baseline_results.json not found. Run train_baseline.py first.
