@@ -66,11 +66,13 @@ def main():
     parser.add_argument("--joint", type=str, default=None)
     parser.add_argument("--models", nargs="+",
                         default=["cyclegan", "wgan_gp", "cvae", "ddpm"],
-                        choices=["cyclegan", "wgan_gp", "cvae", "ddpm"])
+                        choices=["cyclegan", "wgan_gp", "cvae", "ddpm", "cyclegan_vgg"])
     parser.add_argument("--filtered", action="store_true",
                         help="Use FID-filtered synthetic images from synthetic_filtered/")
     parser.add_argument("--best", action="store_true",
                         help="Select top-n synthetic images by pixel quality score at training time")
+    parser.add_argument("--low-data", type=float, default=1.0,
+                        help="Fraction of real KL3/KL4 training images to keep (e.g. 0.2 = 20%%)")
     args = parser.parse_args()
 
     joint = args.joint or "pooled"
@@ -78,7 +80,7 @@ def main():
     meta = load_metadata()
     from dataset import filter_joint
     meta = filter_joint(meta, joint)
-    splits = make_patient_splits(meta)
+    splits = make_patient_splits(meta, low_data_frac=args.low_data)
 
     all_results = {}
 

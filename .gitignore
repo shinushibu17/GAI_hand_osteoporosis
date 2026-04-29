@@ -47,3 +47,4 @@ logs/
 # Ignore latest checkpoints, only keep best
 outputs/checkpoints/**/latest.pth
 outputs/checkpoints/**/sample_ep*.png
+outputs/synthetic_filtered/

@@ -139,25 +139,34 @@ def main():
     parser.add_argument("--ref_clf", type=str,
                         default=str(Path(CFG.ckpt_dir) / "baseline_run0.pth"),
                         help="Path to frozen reference classifier for faithfulness check")
+    parser.add_argument("--joint", type=str, default=None,
+                        help="Joint group to evaluate: dip, pip, mcp, or None for pooled")
     args = parser.parse_args()
 
     CFG.makedirs()
     device_str = "cuda" if __import__("torch").cuda.is_available() else "cpu"
 
     meta = load_metadata()
+    from dataset import filter_joint
+    if args.joint:
+        meta = filter_joint(meta, args.joint)
     splits = make_patient_splits(meta)
+
+    joint_suffix = f"_{args.joint}" if args.joint else ""
 
     print("\n── Generation quality (FID + faithfulness) ─────────────────────")
     gen_quality = compute_generation_quality(splits, device_str, args.ref_clf)
 
-    out_gq = Path(CFG.results_dir) / "fid_faithfulness.json"
+    out_gq = Path(CFG.results_dir) / f"fid_faithfulness{joint_suffix}.json"
     with open(out_gq, "w") as f:
         json.dump(gen_quality, f, indent=2)
     print(f"  Saved to {out_gq}")
 
     print("\n── Comparison table ─────────────────────────────────────────────")
-    baseline_path = Path(CFG.results_dir) / "baseline_results.json"
-    augmented_path = Path(CFG.results_dir) / "augmented_results.json"
+    baseline_path = Path(CFG.results_dir) / f"baseline{joint_suffix}_results.json"
+    if not baseline_path.exists():
+        baseline_path = Path(CFG.results_dir) / "baseline_results.json"
+    augmented_path = Path(CFG.results_dir) / f"augmented_results{joint_suffix}.json"
 
     if not baseline_path.exists():
         print(f"  [WARN] {baseline_path} not found. Run train_baseline.py first.")
@@ -168,8 +177,8 @@ def main():
     else:
         df = build_comparison_table(str(baseline_path), str(augmented_path), gen_quality)
 
-    csv_out = Path(CFG.results_dir) / "comparison_table.csv"
-    txt_out = Path(CFG.results_dir) / "comparison_table.txt"
+    csv_out = Path(CFG.results_dir) / f"comparison_table{joint_suffix}.csv"
+    txt_out = Path(CFG.results_dir) / f"comparison_table{joint_suffix}.txt"
     df.to_csv(csv_out, index=False)
 
     with open(txt_out, "w") as f:

@@ -29,8 +29,13 @@ def make_patient_splits(
     seed: int = CFG.random_seed,
     train_r: float = CFG.train_ratio,
     val_r: float = CFG.val_ratio,
+    low_data_frac: float = 1.0,
 ) -> Dict[str, pd.DataFrame]:
-    """Return {'train': df, 'val': df, 'test': df} split at patient level."""
+    """Return {'train': df, 'val': df, 'test': df} split at patient level.
+    
+    low_data_frac: fraction of real KL3/KL4 training images to keep (default 1.0 = all).
+    e.g. low_data_frac=0.2 keeps only 20% of real KL3/KL4 training images.
+    """
     rng = np.random.default_rng(seed)
     patients = meta[CFG.patient_col].unique()
     rng.shuffle(patients)
@@ -43,7 +48,19 @@ def make_patient_splits(
     val_pats = set(patients[n_train : n_train + n_val])
 
     splits = {}
-    splits["train"] = meta[meta[CFG.patient_col].isin(train_pats)].reset_index(drop=True)
+    train_df = meta[meta[CFG.patient_col].isin(train_pats)].reset_index(drop=True)
+
+    # Low-data regime: subsample KL3/KL4 in training set
+    if low_data_frac < 1.0:
+        minority = train_df[train_df[CFG.grade_col].isin([3, 4])]
+        majority = train_df[~train_df[CFG.grade_col].isin([3, 4])]
+        n_keep = max(1, int(len(minority) * low_data_frac))
+        minority_sub = minority.sample(n=n_keep, random_state=seed)
+        train_df = pd.concat([majority, minority_sub]).reset_index(drop=True)
+        print(f"  [LOW-DATA] Keeping {low_data_frac*100:.0f}% of KL3/KL4 training images "
+              f"({n_keep}/{len(minority)})")
+
+    splits["train"] = train_df
     splits["val"] = meta[meta[CFG.patient_col].isin(val_pats)].reset_index(drop=True)
     splits["test"] = meta[~meta[CFG.patient_col].isin(train_pats | val_pats)].reset_index(drop=True)
 
