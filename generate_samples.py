@@ -39,7 +39,7 @@ def generate_cyclegan(splits, n_per_grade: int, joint: str = "pooled"):
             print(f"  [SKIP] CycleGAN KL{src}→KL{tgt}: checkpoint not found at {ckpt}")
             continue
 
-        state = torch.load(ckpt, map_location=device)
+        state = torch.load(ckpt, map_location=device, weights_only=False)
         G = ResNetGenerator(CFG.channels, CFG.channels, n_blocks=CFG.n_resblocks).to(device)
         G.load_state_dict(state["G_AB"])
         G.eval()
@@ -81,7 +81,7 @@ def generate_wgan_gp(n_per_grade: int, joint: str = "pooled"):
         print(f"  [SKIP] WGAN-GP: checkpoint not found at {ckpt}")
         return
 
-    state = torch.load(ckpt, map_location=device)
+    state = torch.load(ckpt, map_location=device, weights_only=False)
     G = ConditionalGenerator(latent_dim=CFG.latent_dim, n_classes=5,
                               out_ch=CFG.channels, img_size=CFG.img_size).to(device)
     G.load_state_dict(state["G"])
@@ -121,7 +121,7 @@ def generate_cvae(n_per_grade: int, joint: str = "pooled"):
         print(f"  [SKIP] CVAE: checkpoint not found at {ckpt}")
         return
 
-    state = torch.load(ckpt, map_location=device)
+    state = torch.load(ckpt, map_location=device, weights_only=False)
     dec = CVAEDecoder(n_classes=5, latent_dim=CFG.latent_dim_vae,
                       out_ch=CFG.channels, img_size=CFG.img_size).to(device)
     dec.load_state_dict(state["dec"])
@@ -173,7 +173,7 @@ def generate_ddpm(n_per_grade: int, inference_steps: int = 200, joint: str = "po
         up_block_types=("UpBlock2D", "AttnUpBlock2D", "UpBlock2D", "UpBlock2D"),
         num_class_embeds=n_classes + 1,
     ).to(device)
-    state = torch.load(ckpt, map_location=device)
+    state = torch.load(ckpt, map_location=device, weights_only=False)
     model.load_state_dict(state["model"])
     model.eval()
 
