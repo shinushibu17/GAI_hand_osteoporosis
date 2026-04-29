@@ -1,126 +1,129 @@
-# OA Augmentation Comparison — Setup & Run Guide
+# Generative Data Augmentation for Hand Osteoarthritis KL Grade Classification
 
-## Quickstart (SCC)
+**CS790 Computer Vision · Boston University · April 2026**  
+**Author:** Ittoop Shinu Shibu
+
+---
+
+## Overview
+
+This project investigates whether generative data augmentation can improve detection of severe hand osteoarthritis (KL grades 3 and 4) using finger joint radiographs. We compare four generative models — CycleGAN, WGAN-GP, CVAE, and DDPM — for synthesising minority-class images and evaluate their downstream impact on a ResNet-18 classifier.
+
+**Key finding:** Pooled augmentation across all joints does not reliably beat a class-weighted baseline. Targeted per-joint-group training with hyperparameter tuning shows directional KL4 recall improvement.
+
+---
+
+## Dataset
+
+- **Source:** OAI (Osteoarthritis Initiative) Hand Radiograph Dataset
+- **Images:** 41,051 finger joint X-rays
+- **Patients:** 3,556
+- **Joints:** DIP2-5, PIP2-5, MCP2-5 (12 joint types)
+- **KL Grade Distribution:** KL0=76.7%, KL1=11.1%, KL2=10.9%, KL3=0.8%, KL4=0.6%
+- **Imbalance ratio:** 135:1
+
+---
+
+## Models
+
+| Model | Approach | Strength |
+|---|---|---|
+| CycleGAN | KL1→KL3, KL2→KL4 image translation | Preserves bone structure |
+| WGAN-GP | Conditional generation from noise | Grade-specific synthesis |
+| CVAE | Latent space sampling conditioned on grade | Smooth interpolation |
+| DDPM | Classifier-free guidance diffusion | Highest quality ceiling |
+
+---
+
+## Pipeline
+
+```
+setup_data.py          # Extract zip + build metadata.csv from hand.xlsx
+tune_models.py         # Hyperparameter search (3 configs x 30 epochs, FID-based)
+train_cyclegan.py      # CycleGAN training with best hparams, saves best.pth
+train_wgan_gp.py       # WGAN-GP training
+train_cvae.py          # CVAE training
+train_ddpm.py          # DDPM training (optional)
+generate_samples.py    # Generate 1000 synthetic KL3/KL4 images per model
+train_baseline.py      # ResNet-18 baseline (pooled + per-group)
+train_augmented.py     # ResNet-18 with augmentation (aug ratios: 0.3,0.5,1.0,5.0,10.0)
+evaluate.py            # FID, faithfulness, comparison table
+visualize_results.py   # Confusion matrices, recall charts, training curves
+submit_jobs.sh         # Orchestrates full pipeline across GPUs
+```
+
+---
+
+## Quick Start
 
 ```bash
-# 1. Request GPU node
-srun --pty -p gpu -l gpus=1 --mem=32G --time=08:00:00 bash
-
-# 2. Load modules (adjust for your SCC setup)
-module load python3/3.10.12 cuda/12.1
-
-# 3. Create env (first time only)
-conda create -n oa_aug python=3.10 -y
-conda activate oa_aug
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+# 1. Install dependencies
 pip install -r requirements.txt
 
-# 4. Point to your dataset — edit config.py:
-#    data_root  = "/path/to/your/images"
-#    metadata_csv = "/path/to/metadata.csv"
+# 2. Generate metadata (requires hand.xlsx with KL grades)
+python3 setup_data.py --zip "Finger Joints.zip" --data_root ./data --xlsx hand.xlsx
 
-# 5. Run the full pipeline
-bash run_pipeline.sh
+# 3. Run full pipeline (auto-detects GPUs)
+bash submit_jobs.sh --zip "Finger Joints.zip"
+
+# Optional flags
+--skip-baseline    # Skip baseline training
+--skip-clf         # Skip classifier training (generation only)
+--ddpm             # Include DDPM (slow, 150+ epochs needed)
+--fast             # Quick test run (5 epochs, 20 samples)
 ```
 
-## Dataset CSV format
+---
 
-The metadata CSV must have at minimum these columns (column names configurable in `config.py`):
+## Results
 
-| patient_id | image_path              | kl_grade |
-|------------|-------------------------|----------|
-| P001       | images/P001_DIP2_L.png  | 0        |
-| P001       | images/P001_PIP3_L.png  | 2        |
-| P002       | images/P002_MCP2_R.png  | 3        |
+### Baseline (ResNet-18, class-weighted CE loss, 3 runs)
 
-- `image_path` can be absolute or relative to `data_root`
-- `kl_grade` must be integer 0–4
+| Group | Accuracy | Macro F1 | KL3 Recall | KL4 Recall |
+|---|---|---|---|---|
+| Pooled | 0.793 +/- 0.007 | 0.620 +/- 0.005 | 0.532 +/- 0.030 | 0.633 +/- 0.076 |
+| DIP | pending | pending | pending | pending |
+| PIP | pending | pending | pending | pending |
+| MCP | pending | pending | pending | pending |
 
-## Run options
+### Image Quality (FID & Faithfulness)
 
-```bash
-bash run_pipeline.sh           # CycleGAN + WGAN-GP + CVAE (recommended for 8hr)
-bash run_pipeline.sh --ddpm    # also trains DDPM (needs ~3 extra hours)
-bash run_pipeline.sh --fast    # smoke test (5 epochs, 1 run)
-bash run_pipeline.sh --resume  # resume interrupted training
-```
+| Model | Avg FID | KL3 Faithfulness | KL4 Faithfulness |
+|---|---|---|---|
+| CycleGAN | 220.8 | 0.377 | 0.297 |
+| WGAN-GP | 352.8 | 0.167 | 0.069 |
+| CVAE | 421.7 | 0.034 | 0.000 |
+| DDPM | n/a | n/a | n/a |
 
-## Running individual steps
+---
 
-```bash
-python train_baseline.py                     # Step 1: baseline
-python train_cyclegan.py --pair 1,3          # CycleGAN KL1→KL3 only
-python train_cyclegan.py --pair 2,4          # CycleGAN KL2→KL4 only
-python train_wgan_gp.py                      # WGAN-GP
-python train_cvae.py                         # CVAE
-python train_ddpm.py                         # DDPM (optional)
-python generate_samples.py --n 1000          # generate synthetic images
-python train_augmented.py                    # augmented classifiers
-python evaluate.py                           # FID, faithfulness, table
-```
-
-## Output structure
+## Repository Structure
 
 ```
-outputs/
-├── checkpoints/
-│   ├── cyclegan_kl1_to_kl3/latest.pth
-│   ├── cyclegan_kl2_to_kl4/latest.pth
-│   ├── wgan_gp/latest.pth
-│   ├── cvae/latest.pth
-│   ├── ddpm/latest.pth          (if trained)
-│   ├── baseline_run0.pth
-│   └── ...
-├── synthetic/
-│   ├── cyclegan/kl3/*.png
-│   ├── cyclegan/kl4/*.png
-│   ├── wgan_gp/kl3/*.png
-│   ├── wgan_gp/kl4/*.png
-│   ├── cvae/kl3/*.png
-│   └── cvae/kl4/*.png
-└── results/
-    ├── baseline_results.json        ← baseline test metrics (3 runs)
-    ├── augmented_results.json       ← all augmented conditions
-    ├── fid_faithfulness.json        ← FID + label faithfulness
-    ├── comparison_table.csv         ← main deliverable
-    └── comparison_table.txt         ← human-readable table
+config.py              # All hyperparameters and paths
+dataset.py             # Dataset classes, patient-level splits, joint group filtering
+models/networks.py     # ResNetGenerator, PatchGAN, CVAE, WGAN architectures
+train_*.py             # Training scripts
+generate_samples.py    # Synthetic image generation
+evaluate.py            # FID, faithfulness, comparison table
+visualize_results.py   # Figures and charts
+submit_jobs.sh         # Full pipeline orchestration
+outputs/figures/       # Charts and confusion matrices
+outputs/results/       # JSON result files
+logs/                  # Training logs
 ```
 
-## Expected runtime (A100, 128×128 images)
+---
 
-| Step               | Time     |
-|--------------------|----------|
-| Baseline (3 runs)  | ~15 min  |
-| CycleGAN ×2        | ~2.5 hr  |
-| WGAN-GP            | ~1.5 hr  |
-| CVAE               | ~45 min  |
-| DDPM (optional)    | ~2.5 hr  |
-| Generate samples   | ~10 min  |
-| Augmented CLF      | ~1.5 hr  |
-| Evaluation (FID)   | ~10 min  |
-| **Total (no DDPM)**| **~7 hr**|
+## Citation
 
-## Key config knobs (config.py)
+If you use this code, please cite:
 
-| Parameter         | Default | Notes                                   |
-|-------------------|---------|------------------------------------------|
-| `img_size`        | 128     | Generation resolution (128 = fast, 256 = better quality) |
-| `n_epochs_cyclegan` | 200   | Reduce to 100 if short on time          |
-| `n_epochs_wgan`   | 200     | Same                                    |
-| `batch_size_gen`  | 32      | Increase to 64 if VRAM allows           |
-| `n_clf_runs`      | 3       | Reduce to 1 for a quick pass            |
-| `aug_ratios`      | [0.3, 0.5, 1.0] | Per-grade augmentation ratios  |
+```
+Ittoop, S. (2026). Generative Data Augmentation for Hand Osteoarthritis
+KL Grade Classification. CS790 Computer Vision, Boston University.
+```
 
-## Adjusting for VRAM
-
-- **< 16 GB**: reduce `img_size` to 64, `batch_size_gen` to 16
-- **16-40 GB A100**: defaults work fine
-- **V100 (16 GB)**: keep `img_size=128`, `batch_size_gen=16-32`
-
-## Notes
-
-- Patient-level split is fixed at first run and reused across all conditions
-- All classifiers use the same split — direct comparison is valid
-- Weighted sampling during generator training prioritises KL3/KL4
-- CycleGAN trains separate models for KL1→KL3 and KL2→KL4 (more control per pair)
-- WGAN-GP and CVAE train on all grades with weighted sampling (condition on grade label)
+Related work:
+- Cao et al. (2025). CycleGAN augmentation for hand OA. ACR Convergence 2025.
+- Prezja et al. (2022). DeepFake knee OA X-rays. Scientific Reports.

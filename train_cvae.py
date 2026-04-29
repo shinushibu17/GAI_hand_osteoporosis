@@ -91,6 +91,8 @@ def train_cvae(splits, epochs: int, resume: bool = False, ckpt_dir: Path = None)
     fixed_z = torch.randn(10, CFG.latent_dim_vae, device=device)
 
     best_recon_loss = float("inf")
+    patience = 20
+    no_improve = 0
 
     for epoch in range(start_epoch, epochs):
         enc.train(); dec.train()
@@ -137,8 +139,14 @@ def train_cvae(splits, epochs: int, resume: bool = False, ckpt_dir: Path = None)
         epoch_recon = recon_loss_acc / max(len(loader), 1)
         if epoch_recon < best_recon_loss and not (epoch_recon == 0.0):
             best_recon_loss = epoch_recon
+            no_improve = 0
             torch.save({"epoch": epoch, "enc": enc.state_dict(), "dec": dec.state_dict()},
                        ckpt_dir / "best.pth")
+        else:
+            no_improve += 1
+            if no_improve >= patience:
+                print(f"  Early stopping at epoch {epoch+1} (no improvement for {patience} epochs)")
+                break
 
     # Load best checkpoint
     best_ckpt = ckpt_dir / "best.pth"

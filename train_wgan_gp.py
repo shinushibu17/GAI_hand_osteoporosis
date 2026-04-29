@@ -96,6 +96,8 @@ def train_wgan_gp(splits, epochs: int, resume: bool = False, ckpt_dir: Path = No
                                   4, 4, 4, 4], device=device)
 
     best_G_loss = float("inf")
+    patience = 30
+    no_improve = 0
 
     for epoch in range(start_epoch, epochs):
         G.train(); C.train()
@@ -151,8 +153,14 @@ def train_wgan_gp(splits, epochs: int, resume: bool = False, ckpt_dir: Path = No
         epoch_G_loss = loss_G_acc / max(g_steps, 1)
         if epoch_G_loss < best_G_loss:
             best_G_loss = epoch_G_loss
+            no_improve = 0
             torch.save({"epoch": epoch, "G": G.state_dict(), "C": C.state_dict()},
                        ckpt_dir / "best.pth")
+        else:
+            no_improve += 1
+            if no_improve >= patience:
+                print(f"  Early stopping at epoch {epoch+1} (no improvement for {patience} epochs)")
+                break
 
     # Load best checkpoint
     best_ckpt = ckpt_dir / "best.pth"

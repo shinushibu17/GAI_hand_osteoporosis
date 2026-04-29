@@ -131,3 +131,48 @@ Baseline ResNet-18 — mcp — no augmentation
     [baseline_mcp] run=3 ep=15/50  loss=0.3073  val_acc=0.8592  KL3=0.2500  KL4=0.6667  (9s)
     [baseline_mcp] run=3 ep=16/50  loss=0.2963  val_acc=0.8659  KL3=0.2500  KL4=0.6667  (9s)
     [baseline_mcp] run=3 ep=17/50  loss=0.2651  val_acc=0.9284  KL3=0.2500  KL4=0.6667  (9s)
+    [baseline_mcp] run=3 ep=18/50  loss=0.2389  val_acc=0.8825  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=19/50  loss=0.2612  val_acc=0.8227  KL3=0.2500  KL4=0.6667  (9s)
+    [baseline_mcp] run=3 ep=20/50  loss=0.2266  val_acc=0.8152  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=21/50  loss=0.1978  val_acc=0.8659  KL3=0.2500  KL4=0.6667  (9s)
+    [baseline_mcp] run=3 ep=22/50  loss=0.2061  val_acc=0.8758  KL3=0.2500  KL4=0.6667  (9s)
+    [baseline_mcp] run=3 ep=23/50  loss=0.1757  val_acc=0.8853  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=24/50  loss=0.1584  val_acc=0.8991  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=25/50  loss=0.2052  val_acc=0.8834  KL3=0.0000  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=26/50  loss=0.1730  val_acc=0.8867  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=27/50  loss=0.1574  val_acc=0.9028  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=28/50  loss=0.1657  val_acc=0.8867  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=29/50  loss=0.1545  val_acc=0.9066  KL3=0.2500  KL4=0.6667  (9s)
+    [baseline_mcp] run=3 ep=30/50  loss=0.1520  val_acc=0.9095  KL3=0.0000  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=31/50  loss=0.1753  val_acc=0.8900  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=32/50  loss=0.1787  val_acc=0.9028  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=33/50  loss=0.1144  val_acc=0.9062  KL3=0.0000  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=34/50  loss=0.1201  val_acc=0.9299  KL3=0.0000  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=35/50  loss=0.1154  val_acc=0.8910  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=36/50  loss=0.0961  val_acc=0.8825  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=37/50  loss=0.0903  val_acc=0.9033  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=38/50  loss=0.0974  val_acc=0.9100  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=39/50  loss=0.0876  val_acc=0.9043  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=40/50  loss=0.0764  val_acc=0.9199  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=41/50  loss=0.0757  val_acc=0.9180  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=42/50  loss=0.0768  val_acc=0.9024  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=43/50  loss=0.0671  val_acc=0.9161  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=44/50  loss=0.0590  val_acc=0.9190  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=45/50  loss=0.0595  val_acc=0.9218  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=46/50  loss=0.0531  val_acc=0.9294  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=47/50  loss=0.0549  val_acc=0.9294  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=48/50  loss=0.0561  val_acc=0.9275  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=49/50  loss=0.0483  val_acc=0.9194  KL3=0.2500  KL4=0.3333  (9s)
+    [baseline_mcp] run=3 ep=50/50  loss=0.0444  val_acc=0.9180  KL3=0.2500  KL4=0.3333  (9s)
+  Test → acc=0.8693  macroF1=0.4266  KL3=0.1667  KL4=1.0000
+
+  mean ± std across runs:
+    accuracy            : 0.8863 ± 0.0122
+    macro_f1            : 0.3818 ± 0.0318
+    recall_0            : 0.9149 ± 0.0164
+    recall_1            : 0.4730 ± 0.1120
+    recall_2            : 0.4074 ± 0.0637
+    recall_3            : 0.1667 ± 0.0000
+    recall_4            : 0.3333 ± 0.4714
+
+  Saved to outputs/results/baseline_mcp_results.json

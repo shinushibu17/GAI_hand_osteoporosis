@@ -113,6 +113,8 @@ def train_cyclegan(src_grade: int, tgt_grade: int, splits, epochs: int,
 
     best_G_loss = float("inf")
     best_state = None
+    patience = 40
+    no_improve = 0
 
     for epoch in range(start_epoch, epochs):
         G_AB.train(); G_BA.train(); D_A.train(); D_B.train()
@@ -201,6 +203,7 @@ def train_cyclegan(src_grade: int, tgt_grade: int, splits, epochs: int,
         epoch_G_loss = loss_G_acc / max(n_iter, 1)
         if epoch_G_loss < best_G_loss:
             best_G_loss = epoch_G_loss
+            no_improve = 0
             torch.save({
                 "epoch": epoch,
                 "G_AB": G_AB.state_dict(),
@@ -208,6 +211,11 @@ def train_cyclegan(src_grade: int, tgt_grade: int, splits, epochs: int,
                 "D_A": D_A.state_dict(),
                 "D_B": D_B.state_dict(),
             }, ckpt_dir / "best.pth")
+        else:
+            no_improve += 1
+            if no_improve >= patience:
+                print(f"  Early stopping at epoch {epoch+1} (no improvement for {patience} epochs)")
+                break
 
     # Use best checkpoint for generation
     best_ckpt = ckpt_dir / "best.pth"

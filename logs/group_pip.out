@@ -45,3 +45,294 @@ Tuning CycleGAN
   ✓ New best config!
 
   CycleGAN config 2/3: {'lr': 0.0001, 'lambda_cycle': 5.0, 'lambda_identity': 2.0, 'n_resblocks': 6}
+  Config 2 FID = 225.15
+  ✓ New best config!
+
+  CycleGAN config 3/3: {'lr': 0.0002, 'lambda_cycle': 10.0, 'lambda_identity': 0.0, 'n_resblocks': 9}
+  Config 3 FID = 225.93
+
+  Best CycleGAN config (FID=225.15): {'lr': 0.0001, 'lambda_cycle': 5.0, 'lambda_identity': 2.0, 'n_resblocks': 6}
+
+==================================================
+Tuning WGAN-GP
+==================================================
+
+  WGAN-GP config 1/3: {'lr': 0.0001, 'latent_dim': 128, 'n_critic': 5, 'lambda_gp': 10.0}
+  Config 1 FID = 321.69
+  ✓ New best config!
+
+  WGAN-GP config 2/3: {'lr': 0.0002, 'latent_dim': 256, 'n_critic': 3, 'lambda_gp': 10.0}
+  Config 2 FID = 311.41
+  ✓ New best config!
+
+  WGAN-GP config 3/3: {'lr': 5e-05, 'latent_dim': 128, 'n_critic': 5, 'lambda_gp': 5.0}
+  Config 3 FID = 323.40
+
+  Best WGAN-GP config (FID=311.41): {'lr': 0.0002, 'latent_dim': 256, 'n_critic': 3, 'lambda_gp': 10.0}
+
+==================================================
+Tuning CVAE
+==================================================
+
+  CVAE config 1/3: {'lr': 0.001, 'latent_dim_vae': 128, 'kl_weight': 1.0}
+  Config 1 FID = 384.37
+  ✓ New best config!
+
+  CVAE config 2/3: {'lr': 0.0005, 'latent_dim_vae': 256, 'kl_weight': 0.5}
+=== GROUP pip on GPU 1 started Wed Apr 29 13:34:25 UTC 2026 ===
+
+Tuning on device: cuda:0  joint: pip
+  train: 2469 patients,   9632 images  | KL0=6863  KL1=1545  KL2=1152  KL3=41  KL4=31
+  val:  529 patients,   2067 images  | KL0=1459  KL1=335  KL2=259  KL3=9  KL4=5
+  test:  530 patients,   2073 images  | KL0=1454  KL1=337  KL2=254  KL3=19  KL4=9
+  train: 9632 images  KL3=41  KL4=31
+
+==================================================
+Tuning CycleGAN
+==================================================
+
+  CycleGAN config 1/3: {'lr': 0.0002, 'lambda_cycle': 10.0, 'lambda_identity': 5.0, 'n_resblocks': 6}
+  Config 1 FID = 203.14
+  ✓ New best config!
+
+  CycleGAN config 2/3: {'lr': 0.0001, 'lambda_cycle': 5.0, 'lambda_identity': 2.0, 'n_resblocks': 6}
+  Config 2 FID = 212.40
+
+  CycleGAN config 3/3: {'lr': 0.0002, 'lambda_cycle': 10.0, 'lambda_identity': 0.0, 'n_resblocks': 9}
+  Config 3 FID = 229.73
+
+  Best CycleGAN config (FID=203.14): {'lr': 0.0002, 'lambda_cycle': 10.0, 'lambda_identity': 5.0, 'n_resblocks': 6}
+
+==================================================
+Tuning WGAN-GP
+==================================================
+
+  WGAN-GP config 1/3: {'lr': 0.0001, 'latent_dim': 128, 'n_critic': 5, 'lambda_gp': 10.0}
+  Config 1 FID = 301.18
+  ✓ New best config!
+
+  WGAN-GP config 2/3: {'lr': 0.0002, 'latent_dim': 256, 'n_critic': 3, 'lambda_gp': 10.0}
+  Config 2 FID = 308.15
+
+  WGAN-GP config 3/3: {'lr': 5e-05, 'latent_dim': 128, 'n_critic': 5, 'lambda_gp': 5.0}
+  Config 3 FID = 341.07
+
+  Best WGAN-GP config (FID=301.18): {'lr': 0.0001, 'latent_dim': 128, 'n_critic': 5, 'lambda_gp': 10.0}
+
+==================================================
+Tuning CVAE
+==================================================
+
+  CVAE config 1/3: {'lr': 0.001, 'latent_dim_vae': 128, 'kl_weight': 1.0}
+  Config 1 FID = 380.12
+  ✓ New best config!
+
+  CVAE config 2/3: {'lr': 0.0005, 'latent_dim_vae': 256, 'kl_weight': 0.5}
+  Config 2 FID = 337.26
+  ✓ New best config!
+
+  CVAE config 3/3: {'lr': 0.001, 'latent_dim_vae': 64, 'kl_weight': 2.0}
+/venv/main/lib/python3.12/site-packages/cleanfid/fid.py:46: LinAlgWarning: Matrix is singular. The result might be inaccurate or the array might not have a square root.
+  covmean, _ = linalg.sqrtm(sigma1.dot(sigma2), disp=False)
+  Config 3 FID = 415.79
+
+  Best CVAE config (FID=337.26): {'lr': 0.0005, 'latent_dim_vae': 256, 'kl_weight': 0.5}
+
+==================================================
+Best configs saved to: outputs/best_hparams
+  cyclegan: FID=203.14  config={'lr': 0.0002, 'lambda_cycle': 10.0, 'lambda_identity': 5.0, 'n_resblocks': 6, 'best_fid': 203.13924297223625}
+  wgan_gp: FID=301.18  config={'lr': 0.0001, 'latent_dim': 128, 'n_critic': 5, 'lambda_gp': 10.0, 'best_fid': 301.18329810278715}
+  cvae: FID=337.26  config={'lr': 0.0005, 'latent_dim_vae': 256, 'kl_weight': 0.5, 'best_fid': 337.2596011716809}
+==================================================
+  Loading tuned hparams from outputs/best_hparams/pip_cyclegan.json
+  train: 2469 patients,   9632 images  | KL0=6863  KL1=1545  KL2=1152  KL3=41  KL4=31
+  val:  529 patients,   2067 images  | KL0=1459  KL1=335  KL2=259  KL3=9  KL4=5
+  test:  530 patients,   2073 images  | KL0=1454  KL1=337  KL2=254  KL3=19  KL4=9
+
+============================================================
+CycleGAN  KL1 → KL3   device=cuda
+============================================================
+  Domain A (KL1): 1545 imgs  Domain B (KL3): 41 imgs  batch=16  iters/epoch: 2
+  Epoch [  1/500]  G=328.6176  D=65.3516  (17s)
+  Epoch [  2/500]  G=211.6038  D=27.1861  (16s)
+  Epoch [  3/500]  G=191.6048  D=25.8246  (16s)
+  Epoch [  4/500]  G=180.9697  D=24.9199  (16s)
+  Epoch [  5/500]  G=169.1242  D=23.7148  (16s)
+  Epoch [  6/500]  G=169.1376  D=24.0891  (16s)
+  Epoch [  7/500]  G=160.3789  D=22.1908  (16s)
+  Epoch [  8/500]  G=155.4607  D=23.8070  (16s)
+  Epoch [  9/500]  G=152.0012  D=22.0473  (16s)
+  Epoch [ 10/500]  G=147.2871  D=23.1419  (16s)
+  Epoch [ 11/500]  G=155.7272  D=22.5568  (16s)
+  Epoch [ 12/500]  G=142.0593  D=22.2968  (16s)
+  Epoch [ 13/500]  G=141.5789  D=21.8652  (16s)
+  Epoch [ 14/500]  G=139.8733  D=22.8964  (16s)
+  Epoch [ 15/500]  G=138.0867  D=21.4107  (16s)
+  Epoch [ 16/500]  G=135.6185  D=22.4337  (16s)
+  Epoch [ 17/500]  G=132.1709  D=21.7806  (16s)
+  Epoch [ 18/500]  G=139.2699  D=21.4804  (16s)
+  Epoch [ 19/500]  G=134.4661  D=21.7489  (16s)
+  Epoch [ 20/500]  G=132.7172  D=22.3054  (16s)
+  Epoch [ 21/500]  G=136.3268  D=20.9138  (16s)
+  Epoch [ 22/500]  G=130.9248  D=20.7507  (16s)
+  Epoch [ 23/500]  G=129.9461  D=20.7310  (16s)
+  Epoch [ 24/500]  G=131.7028  D=20.8108  (16s)
+  Epoch [ 25/500]  G=161.4675  D=39.6072  (16s)
+  Epoch [ 26/500]  G=119.7919  D=21.7356  (16s)
+  Epoch [ 27/500]  G=117.8053  D=24.2444  (16s)
+  Epoch [ 28/500]  G=117.8001  D=21.3455  (16s)
+  Epoch [ 29/500]  G=117.0523  D=21.4843  (16s)
+  Epoch [ 30/500]  G=119.1274  D=21.6266  (16s)
+  Epoch [ 31/500]  G=116.2338  D=21.7934  (16s)
+  Epoch [ 32/500]  G=116.7880  D=21.7083  (16s)
+  Epoch [ 33/500]  G=114.2019  D=21.6868  (16s)
+  Epoch [ 34/500]  G=113.5854  D=22.1180  (16s)
+  Epoch [ 35/500]  G=116.5849  D=21.1167  (17s)
+  Epoch [ 36/500]  G=113.8823  D=21.4357  (16s)
+  Epoch [ 37/500]  G=113.8804  D=26.1182  (16s)
+  Epoch [ 38/500]  G=111.6760  D=20.6284  (16s)
+  Epoch [ 39/500]  G=111.0390  D=20.7006  (16s)
+  Epoch [ 40/500]  G=116.8685  D=20.7136  (16s)
+  Epoch [ 41/500]  G=116.8549  D=20.8432  (16s)
+  Epoch [ 42/500]  G=117.1755  D=20.5815  (16s)
+  Epoch [ 43/500]  G=113.8707  D=20.7347  (16s)
+  Epoch [ 44/500]  G=118.4729  D=21.2469  (16s)
+  Epoch [ 45/500]  G=117.2209  D=20.1535  (16s)
+  Epoch [ 46/500]  G=114.5173  D=20.9301  (16s)
+  Epoch [ 47/500]  G=113.5489  D=20.6412  (16s)
+  Epoch [ 48/500]  G=117.6378  D=19.9672  (16s)
+  Epoch [ 49/500]  G=114.6650  D=20.2473  (16s)
+  Epoch [ 50/500]  G=122.7044  D=19.5125  (16s)
+  Epoch [ 51/500]  G=116.3833  D=20.0927  (16s)
+  Epoch [ 52/500]  G=115.6396  D=20.9307  (16s)
+  Epoch [ 53/500]  G=121.0888  D=18.4527  (16s)
+  Epoch [ 54/500]  G=117.8999  D=27.6989  (16s)
+  Epoch [ 55/500]  G=103.9251  D=20.9884  (16s)
+  Epoch [ 56/500]  G=112.2916  D=19.8435  (16s)
+  Epoch [ 57/500]  G=112.9012  D=18.5660  (17s)
+  Epoch [ 58/500]  G=114.7925  D=18.7784  (16s)
+  Epoch [ 59/500]  G=114.6230  D=18.0468  (17s)
+  Epoch [ 60/500]  G=119.0966  D=18.9344  (16s)
+  Epoch [ 61/500]  G=118.3296  D=19.1540  (16s)
+  Epoch [ 62/500]  G=115.5011  D=17.7470  (16s)
+  Epoch [ 63/500]  G=118.7053  D=18.0734  (16s)
+  Epoch [ 64/500]  G=115.8173  D=18.5631  (16s)
+  Epoch [ 65/500]  G=116.3060  D=17.5294  (16s)
+  Epoch [ 66/500]  G=114.3914  D=30.1718  (16s)
+  Epoch [ 67/500]  G=104.2492  D=19.7393  (16s)
+  Epoch [ 68/500]  G=102.1047  D=26.6046  (16s)
+  Epoch [ 69/500]  G=99.6714  D=20.8688  (16s)
+  Epoch [ 70/500]  G=110.5378  D=16.9434  (16s)
+  Epoch [ 71/500]  G=111.1307  D=16.5682  (16s)
+  Epoch [ 72/500]  G=112.3641  D=16.4406  (16s)
+  Epoch [ 73/500]  G=114.8940  D=16.6435  (17s)
+  Epoch [ 74/500]  G=120.2254  D=16.6692  (16s)
+  Epoch [ 75/500]  G=130.6576  D=34.7973  (16s)
+  Epoch [ 76/500]  G=100.2692  D=21.2679  (16s)
+  Epoch [ 77/500]  G=99.6615  D=20.9312  (16s)
+  Epoch [ 78/500]  G=101.3412  D=20.9067  (16s)
+  Epoch [ 79/500]  G=98.4852  D=21.2687  (16s)
+  Epoch [ 80/500]  G=98.6897  D=29.3637  (16s)
+  Epoch [ 81/500]  G=96.5898  D=20.5973  (16s)
+  Epoch [ 82/500]  G=96.2996  D=20.1500  (16s)
+  Epoch [ 83/500]  G=97.4695  D=20.0228  (16s)
+  Epoch [ 84/500]  G=102.3420  D=19.7523  (16s)
+  Epoch [ 85/500]  G=99.7120  D=19.8795  (16s)
+  Epoch [ 86/500]  G=100.2927  D=19.6035  (16s)
+  Epoch [ 87/500]  G=104.9777  D=18.9897  (16s)
+  Epoch [ 88/500]  G=104.8150  D=19.5361  (16s)
+  Epoch [ 89/500]  G=103.8074  D=19.0606  (16s)
+  Epoch [ 90/500]  G=107.6068  D=17.6033  (16s)
+  Epoch [ 91/500]  G=113.4069  D=18.1024  (16s)
+  Epoch [ 92/500]  G=113.7348  D=34.7658  (16s)
+  Epoch [ 93/500]  G=97.8814  D=19.7262  (16s)
+  Epoch [ 94/500]  G=96.7946  D=19.7209  (16s)
+  Epoch [ 95/500]  G=100.5090  D=19.8935  (16s)
+  Epoch [ 96/500]  G=127.8087  D=27.4539  (17s)
+  Epoch [ 97/500]  G=89.8768  D=22.1829  (17s)
+  Epoch [ 98/500]  G=93.5997  D=19.3477  (16s)
+  Epoch [ 99/500]  G=96.6091  D=18.3256  (16s)
+  Epoch [100/500]  G=97.2541  D=18.6635  (16s)
+  Epoch [101/500]  G=97.5662  D=18.0984  (16s)
+  Epoch [102/500]  G=97.7631  D=17.8822  (16s)
+  Epoch [103/500]  G=100.7944  D=18.2197  (16s)
+  Epoch [104/500]  G=98.8997  D=18.1358  (16s)
+  Epoch [105/500]  G=100.7982  D=17.6223  (16s)
+  Epoch [106/500]  G=102.5869  D=17.6044  (16s)
+  Epoch [107/500]  G=103.6943  D=17.2038  (16s)
+  Epoch [108/500]  G=102.4194  D=33.7775  (16s)
+  Epoch [109/500]  G=85.2751  D=22.9604  (16s)
+  Epoch [110/500]  G=85.6812  D=21.2316  (16s)
+  Epoch [111/500]  G=89.4764  D=20.5613  (16s)
+  Epoch [112/500]  G=88.1537  D=20.6331  (16s)
+  Epoch [113/500]  G=89.2609  D=20.6598  (16s)
+  Epoch [114/500]  G=89.7638  D=20.1816  (16s)
+  Epoch [115/500]  G=91.2726  D=20.9717  (16s)
+  Epoch [116/500]  G=96.3449  D=19.5697  (16s)
+  Epoch [117/500]  G=99.9755  D=17.2926  (16s)
+  Epoch [118/500]  G=104.3443  D=16.5290  (16s)
+  Epoch [119/500]  G=106.3584  D=15.5371  (16s)
+  Epoch [120/500]  G=169.1298  D=41.8831  (16s)
+  Epoch [121/500]  G=108.5837  D=20.1605  (16s)
+  Epoch [122/500]  G=101.5351  D=16.9780  (16s)
+  Epoch [123/500]  G=101.1327  D=17.3624  (16s)
+  Epoch [124/500]  G=99.2675  D=16.9429  (16s)
+  Epoch [125/500]  G=100.3411  D=17.1004  (16s)
+  Epoch [126/500]  G=100.2154  D=17.4686  (16s)
+  Epoch [127/500]  G=100.4614  D=16.8152  (16s)
+  Epoch [128/500]  G=101.0414  D=17.1856  (16s)
+  Epoch [129/500]  G=100.1517  D=16.7094  (16s)
+  Epoch [130/500]  G=101.1398  D=16.5650  (16s)
+  Epoch [131/500]  G=98.0653  D=28.6732  (16s)
+  Epoch [132/500]  G=93.7396  D=17.1317  (16s)
+  Epoch [133/500]  G=96.5848  D=16.3100  (16s)
+  Epoch [134/500]  G=101.3537  D=15.9511  (16s)
+  Epoch [135/500]  G=101.0598  D=15.9930  (16s)
+  Epoch [136/500]  G=101.8760  D=15.7718  (16s)
+  Epoch [137/500]  G=101.4159  D=16.0251  (16s)
+  Epoch [138/500]  G=103.3594  D=16.0941  (16s)
+  Epoch [139/500]  G=105.5743  D=14.9672  (17s)
+  Epoch [140/500]  G=133.9927  D=43.8347  (16s)
+  Epoch [141/500]  G=99.2012  D=16.5906  (16s)
+  Epoch [142/500]  G=100.4138  D=16.4543  (16s)
+  Epoch [143/500]  G=98.0117  D=15.7623  (16s)
+  Epoch [144/500]  G=98.9932  D=15.9395  (16s)
+  Epoch [145/500]  G=88.8036  D=27.8560  (16s)
+  Epoch [146/500]  G=86.5310  D=18.3615  (16s)
+  Epoch [147/500]  G=93.4925  D=15.8653  (16s)
+  Epoch [148/500]  G=97.1199  D=15.5411  (16s)
+  Epoch [149/500]  G=97.1771  D=15.5924  (16s)
+  Early stopping at epoch 149 (no improvement for 40 epochs)
+  Loaded best checkpoint (G_loss=85.2751) from epoch 109
+  Done. Best checkpoint at: outputs/checkpoints/pip/cyclegan_kl1_to_kl3/best.pth
+  Loading tuned hparams from outputs/best_hparams/pip_cyclegan.json
+  train: 2469 patients,   9632 images  | KL0=6863  KL1=1545  KL2=1152  KL3=41  KL4=31
+  val:  529 patients,   2067 images  | KL0=1459  KL1=335  KL2=259  KL3=9  KL4=5
+  test:  530 patients,   2073 images  | KL0=1454  KL1=337  KL2=254  KL3=19  KL4=9
+
+============================================================
+CycleGAN  KL2 → KL4   device=cuda
+============================================================
+  Domain A (KL2): 1152 imgs  Domain B (KL4): 31 imgs  batch=16  iters/epoch: 1
+  Epoch [  1/500]  G=499.7546  D=111.4129  (18s)
+  Epoch [  2/500]  G=310.7057  D=42.9473  (17s)
+  Epoch [  3/500]  G=284.0022  D=39.0157  (17s)
+  Epoch [  4/500]  G=283.7682  D=38.3111  (17s)
+  Epoch [  5/500]  G=264.9878  D=36.5047  (17s)
+  Epoch [  6/500]  G=261.3874  D=36.6656  (17s)
+  Epoch [  7/500]  G=247.7443  D=34.4641  (17s)
+  Epoch [  8/500]  G=237.5569  D=34.2541  (17s)
+  Epoch [  9/500]  G=233.6287  D=35.4803  (17s)
+  Epoch [ 10/500]  G=226.7238  D=34.0656  (17s)
+  Epoch [ 11/500]  G=220.7046  D=34.0640  (17s)
+  Epoch [ 12/500]  G=219.9145  D=34.0496  (17s)
+  Epoch [ 13/500]  G=210.6997  D=33.7897  (17s)
+  Epoch [ 14/500]  G=209.3932  D=34.6489  (17s)
+  Epoch [ 15/500]  G=208.0547  D=32.2487  (17s)
+  Epoch [ 16/500]  G=207.0840  D=33.4553  (17s)
+  Epoch [ 17/500]  G=205.3610  D=33.1212  (17s)
+  Epoch [ 18/500]  G=208.1143  D=33.7689  (17s)
+  Epoch [ 19/500]  G=200.1029  D=31.3179  (17s)
+  Epoch [ 20/500]  G=196.6546  D=32.9743  (17s)
+  Epoch [ 21/500]  G=208.1465  D=32.7418  (17s)
+  Epoch [ 22/500]  G=197.9608  D=32.3667  (17s)
