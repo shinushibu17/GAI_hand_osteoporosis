@@ -33,9 +33,9 @@ def build_resnet18(n_classes: int = 5) -> nn.Module:
 
 
 def train_one_run(splits, epochs: int, run_id: int, ckpt_path: Path,
-                  synth_dirs=None, aug_ratio=0.0, model_name="baseline"):
+                  synth_dirs=None, aug_ratio=0.0, model_name="baseline", use_best=False):
     device = CFG.device
-    loaders = make_clf_loaders(splits, synth_dirs, aug_ratio)
+    loaders = make_clf_loaders(splits, synth_dirs, aug_ratio, use_best=use_best)
 
     model = build_resnet18().to(device)
     cw = class_weights(splits["train"]).to(device)

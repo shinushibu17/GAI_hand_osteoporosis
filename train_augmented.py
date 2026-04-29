@@ -22,28 +22,32 @@ from dataset import load_metadata, make_patient_splits
 from train_baseline import train_one_run, aggregate_runs
 
 
-def get_synth_dirs(gen_model: str, joint: str) -> dict:
-    """Return {grade: list_of_dirs} pooled across all joints, or single joint."""
-    from dataset import AugmentedDataset
+def get_synth_dirs(gen_model: str, joint: str, use_filtered: bool = False) -> dict:
+    """Return {grade: list_of_dirs} pooled across all joints, or single joint.
+    
+    If use_filtered=True, prefers synthetic_filtered/ over synthetic/.
+    """
+    joints_to_check = CFG.all_joints if joint == "pooled" else \
+                      [j for j in CFG.all_joints if j.startswith(joint)] if len(joint) <= 3 \
+                      else [joint]
 
-    # Joints that have synthetic images
-    joints_to_check = CFG.all_joints if joint == "pooled" else [joint]
-
-    # Collect all available dirs per grade across joints
     grade_dirs: dict = {grade: [] for grade in CFG.target_grades}
     for jt in joints_to_check:
         for grade in CFG.target_grades:
+            # Prefer filtered if available
+            if use_filtered:
+                filtered_d = Path(CFG.output_dir) / "synthetic_filtered" / jt / gen_model / f"kl{grade}"
+                if filtered_d.exists() and any(filtered_d.iterdir()):
+                    grade_dirs[grade].append(str(filtered_d))
+                    continue
             d = CFG.synth_dir(jt, gen_model, grade)
             if d.exists() and any(d.iterdir()):
                 grade_dirs[grade].append(str(d))
 
-    # For AugmentedDataset compatibility, merge dirs into one path per grade
-    # by creating a symlink-free flat mapping: return {grade: comma-joined paths}
-    # We'll handle multi-dir in AugmentedDataset below
     result = {}
     for grade, dirs in grade_dirs.items():
         if dirs:
-            result[grade] = dirs  # list of dirs
+            result[grade] = dirs
         else:
             print(f"  [WARN] No synthetic images for {gen_model}/kl{grade}.")
     return result
@@ -57,6 +61,10 @@ def main():
     parser.add_argument("--models", nargs="+",
                         default=["cyclegan", "wgan_gp", "cvae", "ddpm"],
                         choices=["cyclegan", "wgan_gp", "cvae", "ddpm"])
+    parser.add_argument("--filtered", action="store_true",
+                        help="Use FID-filtered synthetic images from synthetic_filtered/")
+    parser.add_argument("--best", action="store_true",
+                        help="Select top-n synthetic images by pixel quality score at training time")
     args = parser.parse_args()
 
     joint = args.joint or "pooled"
@@ -69,7 +77,7 @@ def main():
     all_results = {}
 
     for gen_model in args.models:
-        synth_dirs = get_synth_dirs(gen_model, joint)
+        synth_dirs = get_synth_dirs(gen_model, joint, use_filtered=args.filtered)
         if not synth_dirs:
             print(f"\n  [SKIP] {gen_model}: no synthetic images found.")
             continue
@@ -89,7 +97,7 @@ def main():
                 metrics = train_one_run(
                     splits, args.epochs, run + 1, ckpt,
                     synth_dirs=synth_dirs, aug_ratio=aug_ratio,
-                    model_name=condition
+                    model_name=condition, use_best=args.best
                 )
                 run_results.append(metrics)
                 print(f"  Test acc={metrics['accuracy']:.4f}  "

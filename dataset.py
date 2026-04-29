@@ -202,6 +202,7 @@ class AugmentedDataset(Dataset):
         synth_dirs: Dict[int, str],
         aug_ratio: float,
         transform=None,
+        use_best: bool = False,  # if True, select top-n by pixel quality score
     ):
         self.transform = transform
         entries: List[Tuple[str, int]] = []
@@ -211,7 +212,6 @@ class AugmentedDataset(Dataset):
             entries.append((row[CFG.image_col], int(row[CFG.grade_col])))
 
         # Synthetic images at requested ratio
-        # synth_dirs values can be a single path string OR a list of paths
         for grade, synth_dir_or_list in synth_dirs.items():
             real_count = len(real_df[real_df[CFG.grade_col] == grade])
             n_add = int(real_count * aug_ratio)
@@ -226,7 +226,27 @@ class AugmentedDataset(Dataset):
             if not paths:
                 print(f"  [WARN] No synthetic images found for KL{grade}")
                 continue
-            chosen = [str(paths[i % len(paths)]) for i in range(n_add)]
+
+            if use_best and len(paths) > n_add:
+                # Score by pixel quality and select top-n
+                import numpy as np
+                scores = []
+                for p in paths:
+                    try:
+                        from PIL import Image as PILImage
+                        arr = np.array(PILImage.open(p).convert("L"), dtype=np.float32)
+                        mean, std = arr.mean(), arr.std()
+                        if mean < 5 or std < 4 or arr.max() - arr.min() < 10:
+                            scores.append(-999.0)
+                        else:
+                            scores.append(float(std - abs(mean - 90) * 0.05))
+                    except Exception:
+                        scores.append(-999.0)
+                ranked = sorted(range(len(paths)), key=lambda i: scores[i], reverse=True)
+                chosen = [str(paths[i]) for i in ranked[:n_add]]
+            else:
+                chosen = [str(paths[i % len(paths)]) for i in range(n_add)]
+
             for p in chosen:
                 entries.append((p, grade))
 
@@ -253,11 +273,13 @@ def make_clf_loaders(
     splits: Dict[str, pd.DataFrame],
     synth_dirs: Optional[Dict[int, str]] = None,
     aug_ratio: float = 0.0,
+    use_best: bool = False,
 ) -> Dict[str, DataLoader]:
     """Build train/val/test DataLoaders for the downstream classifier."""
     if synth_dirs and aug_ratio > 0:
         train_ds = AugmentedDataset(
-            splits["train"], synth_dirs, aug_ratio, transform=clf_transform(augment=True)
+            splits["train"], synth_dirs, aug_ratio,
+            transform=clf_transform(augment=True), use_best=use_best
         )
     else:
         train_ds = OADataset(splits["train"], transform=clf_transform(augment=True))
