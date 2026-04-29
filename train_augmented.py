@@ -23,19 +23,23 @@ from train_baseline import train_one_run, aggregate_runs
 
 
 def get_synth_dirs(gen_model: str, joint: str, use_filtered: bool = False) -> dict:
-    """Return {grade: list_of_dirs} pooled across all joints, or single joint.
-    
-    If use_filtered=True, prefers synthetic_filtered/ over synthetic/.
-    """
-    joints_to_check = CFG.all_joints if joint == "pooled" else \
-                      [j for j in CFG.all_joints if j.startswith(joint)] if len(joint) <= 3 \
-                      else [joint]
+    """Return {grade: list_of_dirs} for a joint or joint group."""
+    from dataset import JOINT_GROUPS
+
+    # Determine which joints to look for
+    if joint == "pooled":
+        joints_to_check = CFG.all_joints
+    elif joint in JOINT_GROUPS:
+        joints_to_check = JOINT_GROUPS[joint]
+    else:
+        joints_to_check = [joint]
 
     grade_dirs: dict = {grade: [] for grade in CFG.target_grades}
-    for jt in joints_to_check:
+
+    for jt in [joint] + joints_to_check if joint not in ["pooled"] else joints_to_check:
         for grade in CFG.target_grades:
-            # Prefer filtered if available
             if use_filtered:
+                # Check group-level filtered dir first (e.g. synthetic_filtered/dip/)
                 filtered_d = Path(CFG.output_dir) / "synthetic_filtered" / jt / gen_model / f"kl{grade}"
                 if filtered_d.exists() and any(filtered_d.iterdir()):
                     grade_dirs[grade].append(str(filtered_d))
@@ -44,10 +48,12 @@ def get_synth_dirs(gen_model: str, joint: str, use_filtered: bool = False) -> di
             if d.exists() and any(d.iterdir()):
                 grade_dirs[grade].append(str(d))
 
+    # Deduplicate
     result = {}
     for grade, dirs in grade_dirs.items():
-        if dirs:
-            result[grade] = dirs
+        unique_dirs = list(dict.fromkeys(dirs))
+        if unique_dirs:
+            result[grade] = unique_dirs
         else:
             print(f"  [WARN] No synthetic images for {gen_model}/kl{grade}.")
     return result

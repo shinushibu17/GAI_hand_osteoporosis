@@ -252,7 +252,8 @@ def load_labels(xlsx_path: str) -> pd.DataFrame:
     print(f"  Using '{pid_col}' as patient ID")
 
     # Find KL grade columns per joint
-    kl_cols = {c: c for c in df.columns if "kl" in c.lower()}
+    # Only use v00 (baseline) KL columns — exclude v06 (follow-up) to prevent leakage
+    kl_cols = {c: c for c in df.columns if "kl" in c.lower() and c.lower().startswith("v00")}
     print(f"  KL columns found: {list(kl_cols.keys())[:12]}")
     return df, pid_col, kl_cols
 

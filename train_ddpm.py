@@ -88,6 +88,10 @@ def train_ddpm(splits, epochs: int, resume: bool = False, ckpt_dir: Path = None)
 
     uncond_token = torch.tensor(n_classes, device=device)
 
+    best_loss = float("inf")
+    patience = 40
+    no_improve = 0
+
     for epoch in range(start_epoch, epochs):
         model.train()
         t0 = time.time()
@@ -97,17 +101,14 @@ def train_ddpm(splits, epochs: int, resume: bool = False, ckpt_dir: Path = None)
             imgs, labels = imgs.to(device), labels.to(device)
             bs = imgs.size(0)
 
-            # Classifier-free: randomly replace labels with unconditional token
             mask = (torch.rand(bs, device=device) < CFG.p_uncond)
             class_labels = labels.clone()
-            class_labels[mask] = n_classes  # unconditional token
+            class_labels[mask] = n_classes
 
-            # Add noise
             noise = torch.randn_like(imgs)
             timesteps = torch.randint(0, CFG.n_timesteps, (bs,), device=device).long()
             noisy = noise_scheduler.add_noise(imgs, noise, timesteps)
 
-            # Predict noise
             pred = model(noisy, timesteps, class_labels=class_labels).sample
             loss = F.mse_loss(pred, noise)
 
@@ -115,16 +116,35 @@ def train_ddpm(splits, epochs: int, resume: bool = False, ckpt_dir: Path = None)
             loss_acc += loss.item()
 
         sched.step()
+        epoch_loss = loss_acc / len(loader)
         elapsed = time.time() - t0
-        print(f"  Epoch [{epoch+1:3d}/{epochs}]  Loss={loss_acc/len(loader):.4f}  ({elapsed:.0f}s)")
+        print(f"  Epoch [{epoch+1:3d}/{epochs}]  Loss={epoch_loss:.4f}  ({elapsed:.0f}s)")
 
         if (epoch + 1) % 10 == 0 or epoch == 0:
             torch.save({"epoch": epoch, "model": model.state_dict()},
                        ckpt_dir / "latest.pth")
-            # Quick sample (10 denoising steps for speed during training)
             _quick_sample(model, noise_scheduler, ckpt_dir, epoch, device, n_classes)
 
-    print(f"  Done. Checkpoint at: {ckpt_dir}/latest.pth")
+        # Best checkpoint + early stopping
+        if epoch_loss < best_loss:
+            best_loss = epoch_loss
+            no_improve = 0
+            torch.save({"epoch": epoch, "model": model.state_dict()},
+                       ckpt_dir / "best.pth")
+        else:
+            no_improve += 1
+            if no_improve >= patience:
+                print(f"  Early stopping at epoch {epoch+1} (no improvement for {patience} epochs)")
+                break
+
+    # Load best checkpoint
+    best_ckpt = ckpt_dir / "best.pth"
+    if best_ckpt.exists():
+        state = torch.load(best_ckpt, map_location=device, weights_only=False)
+        model.load_state_dict(state["model"])
+        print(f"  Loaded best checkpoint (loss={best_loss:.4f}) from epoch {state['epoch']+1}")
+
+    print(f"  Done. Checkpoint at: {ckpt_dir}/best.pth")
     return model, noise_scheduler
 
 

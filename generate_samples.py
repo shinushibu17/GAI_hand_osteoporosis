@@ -21,7 +21,7 @@ from config import CFG
 # CycleGAN generation
 # ──────────────────────────────────────────────────────────────────────────────
 
-def generate_cyclegan(splits, n_per_grade: int, joint: str = "pooled"):
+def generate_cyclegan(splits, n_per_grade: int, joint: str = "pooled", perceptual: bool = False):
     from models.networks import ResNetGenerator
     from dataset import GradeFilteredDataset, gen_transform
     from torch.utils.data import DataLoader
@@ -30,21 +30,23 @@ def generate_cyclegan(splits, n_per_grade: int, joint: str = "pooled"):
     tf = gen_transform(CFG.img_size, augment=False)
 
     for src, tgt in CFG.cyclegan_pairs:
-        out_dir = CFG.synth_dir(joint, "cyclegan", tgt)
+        model_name = f"cyclegan_vgg_kl{src}_to_kl{tgt}" if perceptual else f"cyclegan_kl{src}_to_kl{tgt}"
+        synth_name = "cyclegan_vgg" if perceptual else "cyclegan"
+        out_dir = CFG.synth_dir(joint, synth_name, tgt)
         if out_dir.exists() and len(list(out_dir.glob("*.png"))) >= n_per_grade // 2:
-            print(f"  CycleGAN KL{src}→KL{tgt}: already generated, skipping.")
+            print(f"  CycleGAN{'(VGG)' if perceptual else ''} KL{src}→KL{tgt}: already generated, skipping.")
             continue
-        ckpt = CFG.ckpt_path(joint, f"cyclegan_kl{src}_to_kl{tgt}")
+        ckpt = CFG.ckpt_path(joint, model_name)
         if not ckpt.exists():
             print(f"  [SKIP] CycleGAN KL{src}→KL{tgt}: checkpoint not found at {ckpt}")
             continue
 
-        state = torch.load(ckpt, map_location=device, weights_only=False)
+        state = torch.load(ckpt, map_location=device)
         G = ResNetGenerator(CFG.channels, CFG.channels, n_blocks=CFG.n_resblocks).to(device)
         G.load_state_dict(state["G_AB"])
         G.eval()
 
-        out_dir = CFG.synth_dir(joint, "cyclegan", tgt)
+        out_dir = CFG.synth_dir(joint, synth_name, tgt)
         out_dir.mkdir(parents=True, exist_ok=True)
 
         # Use source grade images as input
@@ -65,7 +67,7 @@ def generate_cyclegan(splits, n_per_grade: int, joint: str = "pooled"):
                 if generated >= n_per_grade:
                     break
 
-        print(f"  CycleGAN KL{src}→KL{tgt}: {generated} images → {out_dir}")
+        print(f"  CycleGAN{'(VGG)' if perceptual else ''} KL{src}→KL{tgt}: {generated} images → {out_dir}")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -74,6 +76,7 @@ def generate_cyclegan(splits, n_per_grade: int, joint: str = "pooled"):
 
 def generate_wgan_gp(n_per_grade: int, joint: str = "pooled"):
     from models.networks import ConditionalGenerator
+    import json
 
     device = CFG.device
     ckpt = CFG.ckpt_path(joint, "wgan_gp")
@@ -81,8 +84,16 @@ def generate_wgan_gp(n_per_grade: int, joint: str = "pooled"):
         print(f"  [SKIP] WGAN-GP: checkpoint not found at {ckpt}")
         return
 
-    state = torch.load(ckpt, map_location=device, weights_only=False)
-    G = ConditionalGenerator(latent_dim=CFG.latent_dim, n_classes=5,
+    # Load best hparams if available
+    latent_dim = CFG.latent_dim
+    hparam_file = Path(CFG.output_dir) / "best_hparams" / f"{joint}_wgan_gp.json"
+    if hparam_file.exists():
+        best = json.load(open(hparam_file))
+        latent_dim = best.get("latent_dim", latent_dim)
+        print(f"  Using tuned latent_dim={latent_dim} from {hparam_file}")
+
+    state = torch.load(ckpt, map_location=device)
+    G = ConditionalGenerator(latent_dim=latent_dim, n_classes=5,
                               out_ch=CFG.channels, img_size=CFG.img_size).to(device)
     G.load_state_dict(state["G"])
     G.eval()
@@ -98,7 +109,7 @@ def generate_wgan_gp(n_per_grade: int, joint: str = "pooled"):
         with torch.no_grad():
             while generated < n_per_grade:
                 n_batch = min(batch, n_per_grade - generated)
-                noise = torch.randn(n_batch, CFG.latent_dim, device=device)
+                noise = torch.randn(n_batch, latent_dim, device=device)
                 labels = torch.full((n_batch,), grade, dtype=torch.long, device=device)
                 fakes = G(noise, labels)
                 for j, fake in enumerate(fakes):
@@ -114,6 +125,7 @@ def generate_wgan_gp(n_per_grade: int, joint: str = "pooled"):
 
 def generate_cvae(n_per_grade: int, joint: str = "pooled"):
     from models.networks import CVAEDecoder
+    import json
 
     device = CFG.device
     ckpt = CFG.ckpt_path(joint, "cvae")
@@ -121,8 +133,16 @@ def generate_cvae(n_per_grade: int, joint: str = "pooled"):
         print(f"  [SKIP] CVAE: checkpoint not found at {ckpt}")
         return
 
+    # Load best hparams if available
+    latent_dim_vae = CFG.latent_dim_vae
+    hparam_file = Path(CFG.output_dir) / "best_hparams" / f"{joint}_cvae.json"
+    if hparam_file.exists():
+        best = json.load(open(hparam_file))
+        latent_dim_vae = best.get("latent_dim_vae", latent_dim_vae)
+        print(f"  Using tuned latent_dim_vae={latent_dim_vae} from {hparam_file}")
+
     state = torch.load(ckpt, map_location=device, weights_only=False)
-    dec = CVAEDecoder(n_classes=5, latent_dim=CFG.latent_dim_vae,
+    dec = CVAEDecoder(n_classes=5, latent_dim=latent_dim_vae,
                       out_ch=CFG.channels, img_size=CFG.img_size).to(device)
     dec.load_state_dict(state["dec"])
     dec.eval()
@@ -138,7 +158,7 @@ def generate_cvae(n_per_grade: int, joint: str = "pooled"):
         with torch.no_grad():
             while generated < n_per_grade:
                 n_batch = min(batch, n_per_grade - generated)
-                z = torch.randn(n_batch, CFG.latent_dim_vae, device=device)
+                z = torch.randn(n_batch, latent_dim_vae, device=device)
                 labels = torch.full((n_batch,), grade, dtype=torch.long, device=device)
                 fakes = dec(z, labels)
                 for j, fake in enumerate(fakes):
@@ -173,7 +193,7 @@ def generate_ddpm(n_per_grade: int, inference_steps: int = 200, joint: str = "po
         up_block_types=("UpBlock2D", "AttnUpBlock2D", "UpBlock2D", "UpBlock2D"),
         num_class_embeds=n_classes + 1,
     ).to(device)
-    state = torch.load(ckpt, map_location=device, weights_only=False)
+    state = torch.load(ckpt, map_location=device)
     model.load_state_dict(state["model"])
     model.eval()
 
@@ -225,6 +245,8 @@ def main():
                         help="Joint type (e.g. dip2). None = pooled.")
     parser.add_argument("--n", type=int, default=1000)
     parser.add_argument("--ddpm_steps", type=int, default=200)
+    parser.add_argument("--perceptual", action="store_true",
+                        help="Generate from VGG perceptual loss CycleGAN checkpoint")
     args = parser.parse_args()
 
     joint = args.joint or "pooled"
@@ -236,7 +258,7 @@ def main():
         meta = filter_joint(meta, joint)
         splits = make_patient_splits(meta)
         print("\n── CycleGAN generation ──────────────────────────────────────")
-        generate_cyclegan(splits, args.n, joint=joint)
+        generate_cyclegan(splits, args.n, joint=joint, perceptual=args.perceptual)
 
     if "wgan_gp" in args.models:
         print("\n── WGAN-GP generation ───────────────────────────────────────")

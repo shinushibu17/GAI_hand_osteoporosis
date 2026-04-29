@@ -16,6 +16,7 @@ import torch.nn as nn
 from torch.optim import Adam
 from torch.optim.lr_scheduler import LinearLR
 from torchvision.utils import save_image
+from torchvision.models import vgg19
 
 from config import CFG
 from dataset import load_metadata, make_patient_splits, UnpairedGradeDataset
@@ -24,8 +25,32 @@ from models.networks import (
 )
 
 
+class VGGPerceptualLoss(nn.Module):
+    """VGG19-based perceptual loss — extracts features from relu3_3 layer."""
+    def __init__(self, device):
+        super().__init__()
+        vgg = vgg19(weights="IMAGENET1K_V1").features[:16].to(device).eval()
+        for p in vgg.parameters():
+            p.requires_grad = False
+        self.vgg = vgg
+        self.l1 = nn.L1Loss()
+        # Normalize for VGG (expects 3-channel RGB)
+        mean = torch.tensor([0.485, 0.456, 0.406], device=device).view(1, 3, 1, 1)
+        std  = torch.tensor([0.229, 0.224, 0.225], device=device).view(1, 3, 1, 1)
+        self.register_buffer("mean", mean)
+        self.register_buffer("std",  std)
+
+    def forward(self, x, y):
+        # x, y are single-channel [-1,1] — convert to 3-channel [0,1] for VGG
+        x3 = (x * 0.5 + 0.5).repeat(1, 3, 1, 1)
+        y3 = (y * 0.5 + 0.5).repeat(1, 3, 1, 1)
+        x3 = (x3 - self.mean) / self.std
+        y3 = (y3 - self.mean) / self.std
+        return self.l1(self.vgg(x3), self.vgg(y3))
+
+
 def train_cyclegan(src_grade: int, tgt_grade: int, splits, epochs: int,
-                   resume: bool = False, ckpt_dir: Path = None):
+                   resume: bool = False, ckpt_dir: Path = None, perceptual: bool = False):
     device = CFG.device
     if ckpt_dir is None:
         ckpt_dir = Path(CFG.ckpt_dir) / f"cyclegan_kl{src_grade}_to_kl{tgt_grade}"
@@ -61,6 +86,13 @@ def train_cyclegan(src_grade: int, tgt_grade: int, splits, epochs: int,
     criterion_GAN   = nn.MSELoss()
     criterion_cycle = nn.L1Loss()
     criterion_idt   = nn.L1Loss()
+    lambda_perc = 5.0 if perceptual else 0.0
+    if perceptual:
+        criterion_perc = VGGPerceptualLoss(device)
+        print("  VGG perceptual loss enabled (λ=5.0)")
+    else:
+        criterion_perc = None
+        print("  VGG perceptual loss disabled")
 
     opt_G = Adam(itertools.chain(G_AB.parameters(), G_BA.parameters()),
                  lr=CFG.lr_cyclegan, betas=(CFG.beta1_cyclegan, 0.999))
@@ -149,7 +181,8 @@ def train_cyclegan(src_grade: int, tgt_grade: int, splits, epochs: int,
             loss_G_BA  = criterion_GAN(D_A(fake_A), torch.ones(D_A(fake_A).shape, device=device))
             loss_cyc   = (criterion_cycle(rec_A, real_A) + criterion_cycle(rec_B, real_B)) * CFG.lambda_cycle
             loss_idt   = (criterion_idt(idt_A, real_A) + criterion_idt(idt_B, real_B)) * CFG.lambda_identity * 0.5
-            loss_G     = loss_G_AB + loss_G_BA + loss_cyc + loss_idt
+            loss_perc  = (criterion_perc(fake_B, real_A) + criterion_perc(fake_A, real_B)) * lambda_perc if criterion_perc else torch.tensor(0.0, device=device)
+            loss_G     = loss_G_AB + loss_G_BA + loss_cyc + loss_idt + loss_perc
             loss_G.backward(); opt_G.step()
             loss_G_acc += loss_G.item()
 
@@ -178,6 +211,7 @@ def train_cyclegan(src_grade: int, tgt_grade: int, splits, epochs: int,
         print(f"  Epoch [{epoch+1:3d}/{epochs}]  "
               f"G={loss_G_acc/max(n_iter,1):.4f}  "
               f"D={loss_D_acc/max(n_iter,1):.4f}  "
+              f"Perc={loss_perc.item():.4f}  "
               f"({elapsed:.0f}s)")
 
         # Save sample grid every 10 epochs
@@ -236,6 +270,8 @@ def main():
     parser.add_argument("--joint", type=str, default=None,
                         help="Joint type to filter (e.g. dip2). None = all joints pooled.")
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--perceptual", action="store_true",
+                        help="Enable VGG19 perceptual loss (improves FID)")
     args = parser.parse_args()
 
     joint = args.joint or ("pooled" if not CFG.train_per_joint else None)
@@ -263,8 +299,10 @@ def main():
         pairs = [(src, tgt)]
 
     for src, tgt in pairs:
-        ckpt_dir = CFG.ckpt_path(joint or "pooled", f"cyclegan_kl{src}_to_kl{tgt}").parent
-        train_cyclegan(src, tgt, splits, args.epochs, args.resume, ckpt_dir=ckpt_dir)
+        model_name = f"cyclegan_vgg_kl{src}_to_kl{tgt}" if args.perceptual else f"cyclegan_kl{src}_to_kl{tgt}"
+        ckpt_dir = CFG.ckpt_path(joint or "pooled", model_name).parent
+        train_cyclegan(src, tgt, splits, args.epochs, args.resume,
+                       ckpt_dir=ckpt_dir, perceptual=args.perceptual)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,7 @@
+{
+  "lr": 0.0002,
+  "lambda_cycle": 10.0,
+  "lambda_identity": 5.0,
+  "n_resblocks": 6,
+  "best_fid": 304.38115706057397
+}
