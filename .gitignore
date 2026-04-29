@@ -29,3 +29,14 @@ __pycache__/
 # Tuning temp images
 outputs/tune_fake/
 outputs/tune_real/
+
+# Exclude synthetic and presentation images
+outputs/synthetic/
+outputs/ppt_samples/
+outputs/real_test/
+outputs/tune_fake/
+outputs/tune_real/
+
+# Keep figures and results
+!outputs/figures/
+!outputs/results/*.json
