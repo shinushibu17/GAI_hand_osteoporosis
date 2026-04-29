@@ -40,3 +40,10 @@ outputs/tune_real/
 # Keep figures and results
 !outputs/figures/
 !outputs/results/*.json
+
+# Logs
+logs/
+
+# Ignore latest checkpoints, only keep best
+outputs/checkpoints/**/latest.pth
+outputs/checkpoints/**/sample_ep*.png
