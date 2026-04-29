@@ -74,40 +74,113 @@ def plot_confusion_matrix(cm, title, out_path, normalize=True):
     print(f"  Saved: {out_path}")
 
 
+def parse_gen_log(log_path: str, model: str):
+    """Parse generator/discriminator loss from generative model log."""
+    epochs, g_loss, d_loss = [], [], []
+    if model == "cyclegan":
+        pattern = re.compile(r"Epoch \[(\d+)/\d+\].*?G=([\d.]+).*?D=([\d.]+)")
+    elif model == "wgan_gp":
+        pattern = re.compile(r"Epoch \[(\d+)/\d+\].*?C=([-\d.]+).*?G=([-\d.]+)")
+    elif model == "cvae":
+        pattern = re.compile(r"Epoch \[(\d+)/\d+\].*?Loss=([\d.nan]+).*?Recon=([\d.nan]+)")
+    else:
+        return [], [], []
+    try:
+        with open(log_path) as f:
+            for line in f:
+                m = pattern.search(line)
+                if m:
+                    epochs.append(int(m.group(1)))
+                    try:
+                        g_loss.append(float(m.group(2)))
+                        d_loss.append(float(m.group(3)))
+                    except ValueError:
+                        g_loss.append(float("nan"))
+                        d_loss.append(float("nan"))
+    except Exception:
+        pass
+    return epochs, g_loss, d_loss
+
+
 def plot_all_confusion_matrices(baseline_path, augmented_path):
-    # Baseline
+    # Baseline mean CM
     if Path(baseline_path).exists():
         data = json.load(open(baseline_path))
-        for i, run in enumerate(data.get("runs", [])):
-            cm = run.get("cm")
-            if cm:
-                plot_confusion_matrix(
-                    cm, f"Baseline — Run {i+1}",
-                    FIG_DIR / f"cm_baseline_run{i+1}.png"
-                )
-        # Average CM across runs
         cms = [np.array(r["cm"]) for r in data.get("runs", []) if "cm" in r]
         if cms:
             avg_cm = np.mean(cms, axis=0)
             plot_confusion_matrix(avg_cm, "Baseline — Mean (3 runs)",
                                   FIG_DIR / "cm_baseline_mean.png")
 
-    # Augmented
+    # Augmented — mean CM per condition
     if Path(augmented_path).exists():
         data = json.load(open(augmented_path))
         for model, ratios in data.items():
             for ratio, cond in ratios.items():
-                for i, run in enumerate(cond.get("runs", [])):
-                    cm = run.get("cm")
-                    if cm:
-                        plot_confusion_matrix(
-                            cm,
-                            f"{model} | ratio={ratio} | Run {i+1}",
-                            FIG_DIR / f"cm_{model}_{ratio}_run{i+1}.png"
-                        )
+                cms = [np.array(r["cm"]) for r in cond.get("runs", []) if "cm" in r]
+                if cms:
+                    avg_cm = np.mean(cms, axis=0)
+                    plot_confusion_matrix(
+                        avg_cm,
+                        f"{model} | ratio={ratio} | Mean",
+                        FIG_DIR / f"cm_{model}_{ratio}_mean.png"
+                    )
 
 
 # ── Recall / F1 Comparison Bar Charts ────────────────────────────────────────
+
+def parse_gen_log(log_path: str, model: str):
+    """Parse generator/discriminator loss from generative model log."""
+    epochs, g_loss, d_loss = [], [], []
+    if model == "cyclegan":
+        pattern = re.compile(r"Epoch \[(\d+)/\d+\].*?G=([\d.]+).*?D=([\d.]+)")
+    elif model == "wgan_gp":
+        pattern = re.compile(r"Epoch \[(\d+)/\d+\].*?C=([-\d.]+).*?G=([-\d.]+)")
+    elif model == "cvae":
+        pattern = re.compile(r"Epoch \[(\d+)/\d+\].*?Loss=([\d.nan]+).*?Recon=([\d.nan]+)")
+    else:
+        return [], [], []
+    try:
+        with open(log_path) as f:
+            for line in f:
+                m = pattern.search(line)
+                if m:
+                    epochs.append(int(m.group(1)))
+                    try:
+                        g_loss.append(float(m.group(2)))
+                        d_loss.append(float(m.group(3)))
+                    except ValueError:
+                        g_loss.append(float("nan"))
+                        d_loss.append(float("nan"))
+    except Exception:
+        pass
+    return epochs, g_loss, d_loss
+
+
+def plot_all_confusion_matrices(baseline_path, augmented_path):
+    # Baseline — average across runs
+    if Path(baseline_path).exists():
+        data = json.load(open(baseline_path))
+        cms = [np.array(r["cm"]) for r in data.get("runs", []) if "cm" in r]
+        if cms:
+            avg_cm = np.mean(cms, axis=0)
+            plot_confusion_matrix(avg_cm, "Baseline — Mean (3 runs)",
+                                  FIG_DIR / "cm_baseline_mean.png")
+
+    # Augmented — average across runs per condition
+    if Path(augmented_path).exists():
+        data = json.load(open(augmented_path))
+        for model, ratios in data.items():
+            for ratio, cond in ratios.items():
+                cms = [np.array(r["cm"]) for r in cond.get("runs", []) if "cm" in r]
+                if cms:
+                    avg_cm = np.mean(cms, axis=0)
+                    plot_confusion_matrix(
+                        avg_cm,
+                        f"{model} | ratio={ratio} | Mean ({len(cms)} runs)",
+                        FIG_DIR / f"cm_{model}_{ratio}_mean.png"
+                    )
+
 
 def plot_recall_comparison(baseline_path, augmented_path, metric="recall_3", ylabel="KL3 Recall"):
     fig, ax = plt.subplots(figsize=(12, 5))
@@ -168,57 +241,37 @@ def plot_recall_comparison(baseline_path, augmented_path, metric="recall_3", yla
 # ── Training Curves from Logs ─────────────────────────────────────────────────
 
 def parse_training_log(log_path: str, model: str):
-    """Parse val_acc, KL3, KL4 from classifier log."""
-    epochs, val_acc, kl3, kl4 = [], [], [], []
+    """Parse val_acc, KL3, KL4 from classifier log — returns per-condition averaged curves."""
+    import re
+    # Group by condition (model_augX.X) and run
+    conditions = {}  # condition -> run_id -> {epoch -> metrics}
     pattern = re.compile(
-        r"ep=(\d+)/\d+.*?val_acc=([\d.]+).*?KL3=([\d.]+).*?KL4=([\d.]+)"
+        r"\[([\w._]+)\] run=(\d+) ep=(\d+)/\d+.*?val_acc=([\d.]+).*?KL3=([\d.]+).*?KL4=([\d.]+)"
     )
     try:
         with open(log_path) as f:
             for line in f:
                 m = pattern.search(line)
                 if m:
-                    epochs.append(int(m.group(1)))
-                    val_acc.append(float(m.group(2)))
-                    kl3.append(float(m.group(3)))
-                    kl4.append(float(m.group(4)))
+                    cond = m.group(1)
+                    run = int(m.group(2))
+                    epoch = int(m.group(3))
+                    if cond not in conditions:
+                        conditions[cond] = {}
+                    if run not in conditions[cond]:
+                        conditions[cond][run] = {"epochs": [], "val_acc": [], "kl3": [], "kl4": []}
+                    conditions[cond][run]["epochs"].append(epoch)
+                    conditions[cond][run]["val_acc"].append(float(m.group(4)))
+                    conditions[cond][run]["kl3"].append(float(m.group(5)))
+                    conditions[cond][run]["kl4"].append(float(m.group(6)))
     except Exception:
         pass
-    return epochs, val_acc, kl3, kl4
-
-
-def parse_gen_log(log_path: str, model: str):
-    """Parse generator/discriminator loss from generative model log."""
-    epochs, g_loss, d_loss = [], [], []
-    if model == "cyclegan":
-        pattern = re.compile(r"Epoch \[(\d+)/\d+\].*?G=([\d.]+).*?D=([\d.]+)")
-    elif model == "wgan_gp":
-        pattern = re.compile(r"Epoch \[(\d+)/\d+\].*?C=([-\d.]+).*?G=([-\d.]+)")
-    elif model == "cvae":
-        pattern = re.compile(r"Epoch \[(\d+)/\d+\].*?Loss=([\d.nan]+).*?Recon=([\d.nan]+)")
-    else:
-        return [], [], []
-    try:
-        with open(log_path) as f:
-            for line in f:
-                m = pattern.search(line)
-                if m:
-                    epochs.append(int(m.group(1)))
-                    try:
-                        g_loss.append(float(m.group(2)))
-                        d_loss.append(float(m.group(3)))
-                    except ValueError:
-                        g_loss.append(float("nan"))
-                        d_loss.append(float("nan"))
-    except Exception:
-        pass
-    return epochs, g_loss, d_loss
+    return conditions
 
 
 def plot_training_curves(log_dir="logs"):
     log_dir = Path(log_dir)
     if not log_dir.exists():
-        print("  No logs directory found")
         return
 
     # Generative model training curves
@@ -228,46 +281,61 @@ def plot_training_curves(log_dir="logs"):
             epochs, g_loss, d_loss = parse_gen_log(str(log_file), model)
             if not epochs:
                 continue
-
             fig, ax = plt.subplots(figsize=(8, 4))
             ax.plot(epochs, g_loss, label="G loss" if model != "cvae" else "Total loss",
                     color=COLORS.get(model, "#888"), linewidth=1.5)
             if any(not np.isnan(x) for x in d_loss):
                 ax.plot(epochs, d_loss, label="D loss" if model != "cvae" else "Recon loss",
                         color="#EF4444", linewidth=1.5, linestyle="--")
-            ax.set_xlabel("Epoch", fontsize=11)
-            ax.set_ylabel("Loss", fontsize=11)
-            ax.set_title(f"{model.upper()} Training — {group.upper()} group", fontsize=12, fontweight="bold")
-            ax.legend(fontsize=9)
-            ax.yaxis.grid(True, alpha=0.3)
-            ax.set_axisbelow(True)
+            ax.set_xlabel("Epoch"); ax.set_ylabel("Loss")
+            ax.set_title(f"{model.upper()} Training — {group.upper()} group", fontweight="bold")
+            ax.legend(fontsize=9); ax.yaxis.grid(True, alpha=0.3); ax.set_axisbelow(True)
             plt.tight_layout()
             fname = FIG_DIR / f"training_curve_{group}_{model}.png"
             fig.savefig(fname, dpi=150, bbox_inches="tight")
             plt.close(fig)
             print(f"  Saved: {fname}")
 
-    # Classifier validation curves
+    # Classifier validation curves — one line per condition, averaged across runs
     for log_file in list(log_dir.glob("clf_*.out")) + list(log_dir.glob("baseline*.out")):
         name = log_file.stem
-        epochs, val_acc, kl3, kl4 = parse_training_log(str(log_file), name)
-        if not epochs:
+        conditions = parse_training_log(str(log_file), name)
+        if not conditions:
             continue
 
-        fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+        fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+        cmap = plt.cm.tab10
+        colors = [cmap(i) for i in range(len(conditions))]
 
-        axes[0].plot(epochs, val_acc, color="#0D9488", linewidth=1.5, label="Val Accuracy")
+        for (cond, runs), color in zip(conditions.items(), colors):
+            # Average across runs for each epoch
+            max_ep = max(max(r["epochs"]) for r in runs.values())
+            epochs = list(range(1, max_ep + 1))
+
+            def avg_metric(key):
+                run_arrays = []
+                for run_data in runs.values():
+                    arr = np.full(max_ep, np.nan)
+                    for ep, val in zip(run_data["epochs"], run_data[key]):
+                        if ep - 1 < max_ep:
+                            arr[ep - 1] = val
+                    run_arrays.append(arr)
+                return np.nanmean(np.array(run_arrays), axis=0)
+
+            label = cond.replace("_aug", " r=")
+            axes[0].plot(epochs, avg_metric("val_acc"), color=color, linewidth=1.5, label=label)
+            axes[1].plot(epochs, avg_metric("kl3"), color=color, linewidth=1.5, linestyle="-", label=f"{label} KL3")
+            axes[1].plot(epochs, avg_metric("kl4"), color=color, linewidth=1.0, linestyle="--")
+
         axes[0].set_xlabel("Epoch"); axes[0].set_ylabel("Accuracy")
-        axes[0].set_title("Validation Accuracy", fontweight="bold")
+        axes[0].set_title("Validation Accuracy (avg across runs)", fontweight="bold")
         axes[0].set_ylim(0, 1); axes[0].yaxis.grid(True, alpha=0.3)
-        axes[0].legend()
+        axes[0].legend(fontsize=7, ncol=2)
 
-        axes[1].plot(epochs, kl3, color="#F59E0B", linewidth=1.5, label="KL3 Recall")
-        axes[1].plot(epochs, kl4, color="#EF4444", linewidth=1.5, label="KL4 Recall")
         axes[1].set_xlabel("Epoch"); axes[1].set_ylabel("Recall")
-        axes[1].set_title("KL3 & KL4 Recall", fontweight="bold")
+        axes[1].set_title("KL3 Recall per condition (solid) | KL4 (dashed)", fontweight="bold")
         axes[1].set_ylim(0, 1); axes[1].yaxis.grid(True, alpha=0.3)
-        axes[1].legend()
+        axes[1].legend(fontsize=7, ncol=2)
 
         fig.suptitle(f"Training Curves — {name}", fontsize=13, fontweight="bold")
         plt.tight_layout()
