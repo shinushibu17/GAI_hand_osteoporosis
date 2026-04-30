@@ -7,9 +7,9 @@
 
 ## Overview
 
-This project investigates whether generative data augmentation can improve detection of severe hand osteoarthritis (KL grades 3 and 4) using finger joint radiographs. We compare four generative models — CycleGAN, WGAN-GP, CVAE, and DDPM — for synthesising minority-class images and evaluate their downstream impact on a ResNet-18 classifier.
+This project investigates whether generative data augmentation can improve detection of severe hand osteoarthritis (OA) grades (KL3, KL4) from finger joint radiographs. We compare three generative architectures — CycleGAN with VGG perceptual loss, WGAN-GP, and Conditional VAE — and evaluate their downstream impact on a ResNet-18 classifier across five augmentation ratios. The primary experimental focus is on **distal interphalangeal (DIP) joints**.
 
-**Key finding:** Pooled augmentation across all joints does not reliably beat a class-weighted baseline. Targeted per-joint-group training with hyperparameter tuning shows directional KL4 recall improvement.
+**Key finding:** No generative model reliably improves KL4 recall at any tested augmentation ratio. KL4 drops below the class-weighted baseline for all three models across all five ratios. CVAE achieves the highest single KL3 result (0.641 at 1.0×) but exhibits posterior collapse — its outputs are effectively noise and the result is not reproducible. These results reveal a critical gap between image realism and clinical faithfulness.
 
 ---
 
@@ -18,20 +18,22 @@ This project investigates whether generative data augmentation can improve detec
 - **Source:** OAI (Osteoarthritis Initiative) Hand Radiograph Dataset
 - **Images:** 41,051 finger joint X-rays
 - **Patients:** 3,556
-- **Joints:** DIP2-5, PIP2-5, MCP2-5 (12 joint types)
+- **Joints:** DIP2–5, PIP2–5, MCP2–5 (12 joint types)
 - **KL Grade Distribution:** KL0=76.7%, KL1=11.1%, KL2=10.9%, KL3=0.8%, KL4=0.6%
-- **Imbalance ratio:** 135:1
+- **Imbalance ratio:** 135:1 (KL0 vs KL3)
+- **Primary focus:** DIP (distal interphalangeal) joints
 
 ---
 
-## Models
+## Generative Models
 
-| Model | Approach | Strength |
+| Model | Approach | Notes |
 |---|---|---|
-| CycleGAN | KL1→KL3, KL2→KL4 image translation | Preserves bone structure |
-| WGAN-GP | Conditional generation from noise | Grade-specific synthesis |
-| CVAE | Latent space sampling conditioned on grade | Smooth interpolation |
-| DDPM | Classifier-free guidance diffusion | Highest quality ceiling |
+| CycleGAN+VGG | KL1→KL3, KL2→KL4 unpaired translation | Sharpest outputs; VGG perceptual loss preserves bone texture |
+| WGAN-GP | Conditional generation from noise + gradient penalty | Anatomically plausible; partial mode-collapse artifacts |
+| CVAE | Latent space sampling conditioned on KL grade | Posterior collapse confirmed; outputs are blurry/uninformative |
+
+All models trained for up to **500 epochs with early stopping** (patience on validation FID). Hyperparameters selected via FID-based search (30 epochs, 100 samples).
 
 ---
 
@@ -39,15 +41,15 @@ This project investigates whether generative data augmentation can improve detec
 
 ```
 setup_data.py          # Extract zip + build metadata.csv from hand.xlsx
-tune_models.py         # Hyperparameter search (3 configs x 30 epochs, FID-based)
-train_cyclegan.py      # CycleGAN training with best hparams, saves best.pth
+tune_models.py         # Hyperparameter search (configs x 30 epochs, FID-based)
+train_cyclegan.py      # CycleGAN+VGG training, saves best checkpoint
 train_wgan_gp.py       # WGAN-GP training
 train_cvae.py          # CVAE training
-train_ddpm.py          # DDPM training (optional)
 generate_samples.py    # Generate 1000 synthetic KL3/KL4 images per model
-train_baseline.py      # ResNet-18 baseline (pooled + per-group)
-train_augmented.py     # ResNet-18 with augmentation (aug ratios: 0.3,0.5,1.0,5.0,10.0)
-evaluate.py            # FID, faithfulness, comparison table
+train_baseline.py      # ResNet-18 baseline (DIP focus)
+train_augmented.py     # ResNet-18 with augmentation (ratios: 0.3, 0.5, 1.0, 5.0, 10.0)
+evaluate.py            # Downstream classification evaluation
+generate_heatmap.py    # Per-class recall delta heatmap
 visualize_results.py   # Confusion matrices, recall charts, training curves
 submit_jobs.sh         # Orchestrates full pipeline across GPUs
 ```
@@ -69,7 +71,6 @@ bash submit_jobs.sh --zip "Finger Joints.zip"
 # Optional flags
 --skip-baseline    # Skip baseline training
 --skip-clf         # Skip classifier training (generation only)
---ddpm             # Include DDPM (slow, 150+ epochs needed)
 --fast             # Quick test run (5 epochs, 20 samples)
 ```
 
@@ -77,53 +78,64 @@ bash submit_jobs.sh --zip "Finger Joints.zip"
 
 ## Results
 
-### Baseline (ResNet-18, class-weighted CE loss, 3 runs)
+### DIP Baseline (ResNet-18, class-weighted CE loss, 3 runs)
 
-| Group | Accuracy | Macro F1 | KL3 Recall | KL4 Recall |
-|---|---|---|---|---|
-| Pooled | 0.793 +/- 0.007 | 0.620 +/- 0.005 | 0.532 +/- 0.030 | 0.633 +/- 0.076 |
-| DIP | pending | pending | pending | pending |
-| PIP | pending | pending | pending | pending |
-| MCP | pending | pending | pending | pending |
-
-### Image Quality (FID & Faithfulness)
-
-| Model | Avg FID | KL3 Faithfulness | KL4 Faithfulness |
+| Accuracy | Macro F1 | KL3 Recall | KL4 Recall |
 |---|---|---|---|
-| CycleGAN | 220.8 | 0.377 | 0.297 |
-| WGAN-GP | 352.8 | 0.167 | 0.069 |
-| CVAE | 421.7 | 0.034 | 0.000 |
-| DDPM | n/a | n/a | n/a |
+| 0.761 ± 0.010 | 0.587 ± 0.014 | 0.526 ± 0.096 | 0.583 ± 0.047 |
+
+### Augmented Classifier — Best KL3 per Model (DIP)
+
+| Model | Ratio | KL3 Recall | KL4 Recall | Note |
+|---|---|---|---|---|
+| CycleGAN+VGG | 1.0× | 0.551 ± 0.036 | 0.433 ± 0.118 | Best reliable KL3 gain |
+| WGAN-GP | 10.0× | 0.603 ± 0.127 | 0.367 ± 0.085 | High variance |
+| CVAE | 1.0× | **0.641 ± 0.065** | 0.467 ± 0.047 | Posterior collapse — unreliable |
+
+**KL4 recall never exceeds baseline (0.583) for any model at any ratio.**
+
+### Generation Quality
+
+FID and label faithfulness were not computed in this experimental run. Qualitative assessment from final-epoch checkpoint images:
+
+| Model | Visual Quality |
+|---|---|
+| CycleGAN+VGG | Sharp; clear bone trabeculae and joint-space narrowing |
+| WGAN-GP | Sharp; recurring texture artifacts (partial mode collapse) |
+| CVAE | Severely blurry; posterior collapse — one sample fully white |
 
 ---
 
 ## Repository Structure
 
 ```
-config.py              # All hyperparameters and paths
-dataset.py             # Dataset classes, patient-level splits, joint group filtering
-models/networks.py     # ResNetGenerator, PatchGAN, CVAE, WGAN architectures
-train_*.py             # Training scripts
-generate_samples.py    # Synthetic image generation
-evaluate.py            # FID, faithfulness, comparison table
-visualize_results.py   # Figures and charts
-submit_jobs.sh         # Full pipeline orchestration
-outputs/figures/       # Charts and confusion matrices
-outputs/results/       # JSON result files
-logs/                  # Training logs
+config.py                          # Hyperparameters and paths
+dataset.py                         # Dataset classes, patient-level splits
+models/networks.py                 # Generator, PatchGAN, CVAE, WGAN architectures
+train_*.py                         # Training scripts (cyclegan, wgan_gp, cvae)
+generate_samples.py                # Synthetic image generation
+evaluate.py                        # Classification evaluation
+generate_heatmap.py                # Per-class recall delta heatmap
+visualize_results.py               # Figures and confusion matrices
+submit_jobs.sh                     # Full pipeline orchestration
+outputs/checkpoints/dip/           # Final-epoch checkpoint images per model
+outputs/results/                   # JSON result files (augmented_results_dip_reeval.json)
+outputs/figures/                   # Heatmap and other figures
+paper.tex                          # CS790 paper (LaTeX)
+poster.tex                         # Conference-style poster (LaTeX)
+presentation.tex                   # Beamer slide deck (LaTeX)
 ```
 
 ---
 
 ## Citation
 
-If you use this code, please cite:
-
 ```
-Ittoop, S. (2026). Generative Data Augmentation for Hand Osteoarthritis
+Shibu, I. S. (2026). Generative Data Augmentation for Hand Osteoarthritis
 KL Grade Classification. CS790 Computer Vision, Boston University.
 ```
 
 Related work:
-- Cao et al. (2025). CycleGAN augmentation for hand OA. ACR Convergence 2025.
-- Prezja et al. (2022). DeepFake knee OA X-rays. Scientific Reports.
+- Cao et al. (2025). CycleGAN and EfficientNetB7 for hand OA classification. ACR Convergence 2025, Abstract 2562.
+- Zhu et al. (2017). Unpaired image-to-image translation using cycle-consistent adversarial networks. ICCV.
+- Gulrajani et al. (2017). Improved training of Wasserstein GANs. NeurIPS.
